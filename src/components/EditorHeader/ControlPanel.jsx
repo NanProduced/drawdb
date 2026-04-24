@@ -87,10 +87,9 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { DateTime } from "luxon";
 import ConfigureCustomTypes from "./ConfigureCustomTypes";
 
-export default function ControlPanel({ title, setTitle, lastSaved }) {
+export default function ControlPanel({ title, setTitle, lastSaved, modal, setModal }) {
   const { id: diagramId } = useParams();
 
-  const [modal, setModal] = useState(MODAL.NONE);
   const [sidesheet, setSidesheet] = useState(SIDESHEET.NONE);
   const [showEditName, setShowEditName] = useState(false);
   const [importDb, setImportDb] = useState("");
@@ -1486,6 +1485,9 @@ export default function ControlPanel({ title, setTitle, lastSaved }) {
       configure_custom_types: {
         function: () => setModal(MODAL.CONFIG_CUSTOM_TYPES),
         disabled: layout.readOnly,
+      },
+      ai_settings: {
+        function: () => setModal(MODAL.AI_SETTINGS),
       },
       language: {
         function: () => setModal(MODAL.LANGUAGE),

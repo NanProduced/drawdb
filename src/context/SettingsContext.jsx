@@ -14,6 +14,10 @@ const defaultSettings = {
   tableWidth: tableWidth,
   showDebugCoordinates: false,
   showComments: true,
+  aiProvider: "openai",
+  aiApiKey: "",
+  aiModel: "gpt-4o",
+  aiBaseUrl: "",
 };
 
 export const SettingsContext = createContext(defaultSettings);

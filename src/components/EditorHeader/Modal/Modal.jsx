@@ -32,6 +32,7 @@ import Open from "./Open";
 import Rename from "./Rename";
 import SetTableWidth from "./SetTableWidth";
 import Share from "./Share";
+import AISettings from "./AISettings";
 import { useNavigate } from "react-router-dom";
 import { mergeCustomTypes } from "../../../utils/customTypes";
 
@@ -327,10 +328,11 @@ export default function Modal({
   };
 
   return (
+    <>
     <SemiUIModal
       style={isRtl(i18n.language) ? { direction: "rtl" } : {}}
       title={getModalTitle(modal)}
-      visible={modal !== MODAL.NONE && modal !== MODAL.CONFIG_CUSTOM_TYPES}
+      visible={modal !== MODAL.NONE && modal !== MODAL.CONFIG_CUSTOM_TYPES && modal !== MODAL.AI_SETTINGS}
       onOk={getModalOnOk}
       afterClose={() => {
         setExportData(() => ({
@@ -380,5 +382,17 @@ export default function Modal({
     >
       {getModalBody()}
     </SemiUIModal>
+    <SemiUIModal
+      title="AI Settings"
+      visible={modal === MODAL.AI_SETTINGS}
+      onCancel={() => setModal(MODAL.NONE)}
+      footer={null}
+      centered
+      width={600}
+      bodyStyle={{ direction: "ltr" }}
+    >
+      <AISettings />
+    </SemiUIModal>
+    </>
   );
 }

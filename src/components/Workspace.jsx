@@ -3,7 +3,7 @@ import ControlPanel from "./EditorHeader/ControlPanel";
 import Canvas from "./EditorCanvas/Canvas";
 import { CanvasContextProvider } from "../context/CanvasContext";
 import SidePanel from "./EditorSidePanel/SidePanel";
-import { DB, State } from "../data/constants";
+import { DB, MODAL, State } from "../data/constants";
 import { db } from "../data/db";
 import {
   useLayout,
@@ -32,6 +32,7 @@ import {
 import { get, SHARE_FILENAME } from "../api/gists";
 import { nanoid } from "nanoid";
 import { mergeCustomTypes } from "../utils/customTypes";
+import AIChatWindow from "./AIChat/AIChatWindow";
 
 export const IdContext = createContext({
   gistId: "",
@@ -53,6 +54,7 @@ export default function WorkSpace() {
   const [showSelectDbModal, setShowSelectDbModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [selectedDb, setSelectedDb] = useState("");
+  const [modal, setModal] = useState(MODAL.NONE);
   const { layout, setLayout } = useLayout();
   const { settings } = useSettings();
   const { types, setTypes } = useTypes();
@@ -474,6 +476,8 @@ export default function WorkSpace() {
           setTitle={setTitle}
           lastSaved={lastSaved}
           setLastSaved={setLastSaved}
+          modal={modal}
+          setModal={setModal}
         />
       </IdContext.Provider>
       <div
@@ -517,6 +521,7 @@ export default function WorkSpace() {
               <FloatingControls />
             </div>
           )}
+          <AIChatWindow setModal={setModal} />
         </div>
       </div>
       <Modal

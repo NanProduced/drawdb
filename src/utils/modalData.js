@@ -25,6 +25,8 @@ export const getModalTitle = (modal) => {
       return i18n.t("language");
     case MODAL.SHARE:
       return i18n.t("share");
+    case MODAL.AI_SETTINGS:
+      return "AI Settings";
     default:
       return "";
   }
