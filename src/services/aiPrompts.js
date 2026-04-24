@@ -64,7 +64,7 @@ Relationship Guidelines - HOW to use create_relationships:
 - from_field: the foreign key field name (e.g. "user_id")
 - to_table: the target table being referenced (e.g. "users")
 - to_field: the primary key field being referenced (usually "id")
-- cardinality: default is "one_to_many" (most common, e.g. one user has many orders)
+- cardinality: use "many_to_one" when from_table is the foreign-key table and to_table is the referenced table (e.g. many orders belong to one user)
 - If the foreign key field doesn't exist yet, you should first include it in the table fields when calling create_tables
 
 Example scenarios:
