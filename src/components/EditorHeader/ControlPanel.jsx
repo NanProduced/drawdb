@@ -383,23 +383,31 @@ export default function ControlPanel({ title, setTitle, lastSaved, modal, setMod
         } else if (a.component === "field_delete") {
           deleteField(a.data.field, a.tid, false);
         } else if (a.component === "field_add") {
-          updateTable(a.tid, {
-            fields: [
-              ...table.fields,
-              {
-                name: "",
-                type: "",
-                default: "",
-                check: "",
-                primary: false,
-                unique: false,
-                notNull: false,
-                increment: false,
-                comment: "",
-                id: nanoid(),
-              },
-            ],
-          });
+          if (a.data && a.data.field) {
+            const updatedFields = table.fields.slice();
+            const insertIndex =
+              a.data.index !== undefined ? a.data.index : updatedFields.length;
+            updatedFields.splice(insertIndex, 0, { ...a.data.field });
+            updateTable(a.tid, { fields: updatedFields });
+          } else {
+            updateTable(a.tid, {
+              fields: [
+                ...table.fields,
+                {
+                  name: "",
+                  type: "",
+                  default: "",
+                  check: "",
+                  primary: false,
+                  unique: false,
+                  notNull: false,
+                  increment: false,
+                  comment: "",
+                  id: nanoid(),
+                },
+              ],
+            });
+          }
         } else if (a.component === "index_add") {
           updateTable(a.tid, {
             indices: [
