@@ -10,6 +10,7 @@ export const AIContext = createContext(null);
 
 const SAVE_DEBOUNCE_MS = 800;
 const MAX_AGENT_ITERATIONS = 10;
+const STREAM_RENDER_INTERVAL = 50;
 
 function toApiMessages(messages) {
   return messages
@@ -160,6 +161,17 @@ export default function AIContextProvider({ children, diagramId }) {
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
+
+          const streamingMessage = {
+            role: "assistant",
+            content: "",
+          };
+          currentMessages = [...currentMessages, streamingMessage];
+          messagesRef.current = currentMessages;
+          setMessages([...currentMessages]);
+
+          let lastRenderTime = 0;
+
           const result = await chatCompletion({
             messages: apiMessages,
             tools: toolDefinitions,
@@ -168,18 +180,23 @@ export default function AIContextProvider({ children, diagramId }) {
             model: settings.aiModel,
             baseUrl: settings.aiBaseUrl,
             signal: abortControllerRef.current.signal,
+            onContent: (partialContent) => {
+              streamingMessage.content = partialContent;
+              const now = Date.now();
+              if (now - lastRenderTime >= STREAM_RENDER_INTERVAL) {
+                lastRenderTime = now;
+                setMessages([...messagesRef.current]);
+              }
+            },
           });
 
+          streamingMessage.content = result.content || "";
           if (result.toolCalls && result.toolCalls.length > 0) {
-            const assistantMessage = {
-              role: "assistant",
-              content: result.content || "",
-              toolCalls: result.toolCalls,
-            };
-            currentMessages = [...currentMessages, assistantMessage];
-            messagesRef.current = currentMessages;
-            setMessages([...currentMessages]);
+            streamingMessage.toolCalls = result.toolCalls;
+          }
+          setMessages([...messagesRef.current]);
 
+          if (result.toolCalls && result.toolCalls.length > 0) {
             apiMessages.push({
               role: "assistant",
               content: result.content || null,
@@ -228,34 +245,39 @@ export default function AIContextProvider({ children, diagramId }) {
 
             continueLoop = true;
           } else {
-            const assistantMessage = {
-              role: "assistant",
-              content: result.content || "",
-            };
-            currentMessages = [...currentMessages, assistantMessage];
-            messagesRef.current = currentMessages;
-            setMessages([...currentMessages]);
             continueLoop = false;
           }
         }
       } catch (e) {
         if (e.name === "AbortError") {
-          const cancelMessage = {
-            role: "assistant",
-            content: t("ai_operation_cancelled"),
-            displayOnly: true,
-          };
-          messagesRef.current = [...messagesRef.current, cancelMessage];
-          setMessages([...messagesRef.current]);
+          const msgs = messagesRef.current;
+          const lastMsg = msgs[msgs.length - 1];
+          if (lastMsg && lastMsg.role === "assistant" && !lastMsg.toolCalls) {
+            lastMsg.content = t("ai_operation_cancelled");
+            lastMsg.displayOnly = true;
+          } else {
+            msgs.push({
+              role: "assistant",
+              content: t("ai_operation_cancelled"),
+              displayOnly: true,
+            });
+          }
+          setMessages([...msgs]);
         } else {
           setError(e.message || "An error occurred while calling the AI.");
-          const errorMessage = {
-            role: "assistant",
-            content: `${t("ai_error_prefix")}${e.message || "Failed to get AI response."}`,
-            displayOnly: true,
-          };
-          messagesRef.current = [...messagesRef.current, errorMessage];
-          setMessages([...messagesRef.current]);
+          const msgs = messagesRef.current;
+          const lastMsg = msgs[msgs.length - 1];
+          if (lastMsg && lastMsg.role === "assistant" && !lastMsg.toolCalls && !lastMsg.content) {
+            lastMsg.content = `${t("ai_error_prefix")}${e.message || "Failed to get AI response."}`;
+            lastMsg.displayOnly = true;
+          } else {
+            msgs.push({
+              role: "assistant",
+              content: `${t("ai_error_prefix")}${e.message || "Failed to get AI response."}`,
+              displayOnly: true,
+            });
+          }
+          setMessages([...msgs]);
         }
       } finally {
         setIsLoading(false);
