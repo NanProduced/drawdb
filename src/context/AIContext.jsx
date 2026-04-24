@@ -195,12 +195,14 @@ export default function AIContextProvider({ children, diagramId }) {
         let nonSystemApiMessages = toApiMessages(newMessages);
 
         const currentDiagram = diagramRef.current;
-        const tables = deepCloneTables(currentDiagram.tables);
-        const relationships = deepCloneRelationships(currentDiagram.relationships);
         const database = currentDiagram.database;
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
+
+          const freshDiagram = diagramRef.current;
+          const tables = deepCloneTables(freshDiagram.tables);
+          const relationships = deepCloneRelationships(freshDiagram.relationships);
 
           const streamingMessage = {
             role: "assistant",
@@ -210,7 +212,7 @@ export default function AIContextProvider({ children, diagramId }) {
           messagesRef.current = currentMessages;
           setMessages([...currentMessages]);
 
-          const systemPrompt = buildSystemPrompt(database, tables);
+          const systemPrompt = buildSystemPrompt(database, tables, relationships);
 
           const apiMessages = [
             { role: "system", content: systemPrompt },
