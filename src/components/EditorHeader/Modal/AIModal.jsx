@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Input,
   Radio,
@@ -28,6 +28,14 @@ export default function AIModal({ onGenerate }) {
   const [showSettings, setShowSettings] = useState(!settings.aiApiKey || !settings.aiApiKey.trim());
 
   const hasApiKey = settings.aiApiKey && settings.aiApiKey.trim() !== "";
+
+  useEffect(() => {
+    if (showSettings) {
+      setTempApiKey(settings.aiApiKey || "");
+      setTempBaseUrl(settings.aiBaseUrl || "https://api.openai.com/v1");
+      setTempModel(settings.aiModel || "gpt-4o-mini");
+    }
+  }, [showSettings, settings.aiApiKey, settings.aiBaseUrl, settings.aiModel]);
 
   const examplePrompts = [
     "创建一个电商系统，包含用户、商品、订单和购物车",
