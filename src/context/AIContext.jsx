@@ -140,8 +140,6 @@ export default function AIContextProvider({ children, diagramId }) {
       setMessages([...newMessages]);
       setIsLoading(true);
 
-      const currentDiagram = diagramRef.current;
-
       try {
         abortControllerRef.current = new AbortController();
 
@@ -162,9 +160,12 @@ export default function AIContextProvider({ children, diagramId }) {
           setMessages([...currentMessages]);
 
           const currentDiagram = diagramRef.current;
+          const tables = [...currentDiagram.tables];
+          const relationships = [...currentDiagram.relationships];
+
           const systemPrompt = buildSystemPrompt(
             currentDiagram.database,
-            currentDiagram.tables,
+            tables,
           );
 
           const apiMessages = [
@@ -219,7 +220,7 @@ export default function AIContextProvider({ children, diagramId }) {
               const toolResult = executeTool(
                 toolCall.name,
                 toolCall.arguments,
-                diagramRef.current,
+                { tables, relationships, diagram: diagramRef.current },
               );
 
               const toolMessage = {
