@@ -14,6 +14,8 @@ const defaultSettings = {
   tableWidth: tableWidth,
   showDebugCoordinates: false,
   showComments: true,
+  aiApiKey: "",
+  aiBaseUrl: "https://api.openai.com/v1",
 };
 
 export const SettingsContext = createContext(defaultSettings);

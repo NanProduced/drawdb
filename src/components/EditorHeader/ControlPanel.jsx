@@ -1470,6 +1470,9 @@ export default function ControlPanel({ title, setTitle, lastSaved }) {
       show_timeline: {
         function: () => setSidesheet(SIDESHEET.TIMELINE),
       },
+      ai_settings: {
+        function: () => setModal(MODAL.AI),
+      },
       autosave: {
         state: settings.autosave ? (
           <i className="bi bi-toggle-on" />
