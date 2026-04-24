@@ -24,22 +24,23 @@ const defaultContextValue = {
   setSettings: () => {},
 };
 
+function loadSettings() {
+  try {
+    const savedSettings = localStorage.getItem("settings");
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings);
+      return { ...defaultSettings, ...parsed };
+    }
+  } catch (error) {
+    console.error("Failed to parse settings from localStorage:", error);
+  }
+  return { ...defaultSettings };
+}
+
 export const SettingsContext = createContext(defaultContextValue);
 
 export default function SettingsContextProvider({ children }) {
-  const [settings, setSettings] = useState(defaultSettings);
-
-  useEffect(() => {
-    try {
-      const savedSettings = localStorage.getItem("settings");
-      if (savedSettings) {
-        const parsed = JSON.parse(savedSettings);
-        setSettings({ ...defaultSettings, ...parsed });
-      }
-    } catch (error) {
-      console.error("Failed to parse settings from localStorage:", error);
-    }
-  }, []);
+  const [settings, setSettings] = useState(loadSettings);
 
   useEffect(() => {
     document.body.setAttribute("theme-mode", settings.mode);
