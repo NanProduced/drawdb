@@ -137,7 +137,7 @@ export const toolDefinitions = [
   },
 ];
 
-export function executeTool(toolName, args, diagram) {
+export function executeTool(toolName, args, { tables, relationships, diagram }) {
   let parsedArgs;
   try {
     parsedArgs = typeof args === "string" ? JSON.parse(args) : args;
@@ -147,25 +147,25 @@ export function executeTool(toolName, args, diagram) {
 
   switch (toolName) {
     case "create_tables":
-      return executeCreateTables(parsedArgs, diagram);
+      return executeCreateTables(parsedArgs, { tables, diagram });
     case "create_relationships":
-      return executeCreateRelationships(parsedArgs, diagram);
+      return executeCreateRelationships(parsedArgs, { tables, relationships, diagram });
     default:
       return { success: false, error: `Unknown tool: ${toolName}` };
   }
 }
 
-function executeCreateTables(args, diagram) {
-  const { tables } = args;
+function executeCreateTables(args, { tables, diagram }) {
+  const { tables: tablesToCreate } = args;
   const results = [];
-  const existingTableNames = diagram.tables.map((t) =>
+  const existingTableNames = tables.map((t) =>
     t.name.toLowerCase(),
   );
   const createdNames = [];
 
-  const baseOffset = diagram.tables.length;
+  const baseOffset = tables.length;
 
-  tables.forEach((tableDef) => {
+  tablesToCreate.forEach((tableDef) => {
     const tableName = tableDef.name.toLowerCase();
 
     if (existingTableNames.includes(tableName) || createdNames.includes(tableName)) {
@@ -239,6 +239,7 @@ function executeCreateTables(args, diagram) {
     };
 
     diagram.addTable({ table: newTable, index: baseOffset + successIndex });
+    tables.push(newTable);
     results.push({
       success: true,
       tableName: tableDef.name,
@@ -261,12 +262,12 @@ function executeCreateTables(args, diagram) {
   return { success: true, message, results };
 }
 
-function executeCreateRelationships(args, diagram) {
-  const { relationships } = args;
+function executeCreateRelationships(args, { tables, relationships, diagram }) {
+  const { relationships: relationshipsToCreate } = args;
   const results = [];
   const createdKeys = new Set();
 
-  for (const relDef of relationships) {
+  for (const relDef of relationshipsToCreate) {
     const {
       from_table: fromTable,
       from_field: fromField,
@@ -293,9 +294,9 @@ function executeCreateRelationships(args, diagram) {
       continue;
     }
 
-    const existingRelationship = diagram.relationships.find((r) => {
-      const startTable = diagram.tables.find((t) => t.id === r.startTableId);
-      const endTable = diagram.tables.find((t) => t.id === r.endTableId);
+    const existingRelationship = relationships.find((r) => {
+      const startTable = tables.find((t) => t.id === r.startTableId);
+      const endTable = tables.find((t) => t.id === r.endTableId);
       const startField = startTable?.fields.find((f) => f.id === r.startFieldId);
       const endField = endTable?.fields.find((f) => f.id === r.endFieldId);
 
@@ -316,7 +317,7 @@ function executeCreateRelationships(args, diagram) {
       continue;
     }
 
-    const startTable = diagram.tables.find((t) => t.name.toLowerCase() === fromTableName);
+    const startTable = tables.find((t) => t.name.toLowerCase() === fromTableName);
     if (!startTable) {
       results.push({
         success: false,
@@ -325,7 +326,7 @@ function executeCreateRelationships(args, diagram) {
       continue;
     }
 
-    const endTable = diagram.tables.find((t) => t.name.toLowerCase() === toTableName);
+    const endTable = tables.find((t) => t.name.toLowerCase() === toTableName);
     if (!endTable) {
       results.push({
         success: false,
@@ -378,6 +379,7 @@ function executeCreateRelationships(args, diagram) {
     };
 
     diagram.addRelationship(newRelationship);
+    relationships.push(newRelationship);
     createdKeys.add(relationshipKey);
 
     results.push({
