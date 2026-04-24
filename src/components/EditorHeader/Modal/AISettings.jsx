@@ -6,20 +6,17 @@ import { useSettings } from "../../../hooks";
 const providerOptions = [
   { value: "openai", label: "OpenAI" },
   { value: "claude", label: "Claude (Anthropic)" },
+  { value: "compatible", label: "OpenAI Compatible" },
 ];
 
-const modelOptions = {
-  openai: [
-    { value: "gpt-4o", label: "GPT-4o" },
-    { value: "gpt-4o-mini", label: "GPT-4o Mini" },
-    { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
-    { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
-  ],
+const modelSuggestions = {
+  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
   claude: [
-    { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
-    { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
-    { value: "claude-3-haiku-20240307", label: "Claude 3 Haiku" },
+    "claude-sonnet-4-20250514",
+    "claude-3-5-sonnet-20241022",
+    "claude-3-haiku-20240307",
   ],
+  compatible: [],
 };
 
 export default function AISettings() {
@@ -33,9 +30,12 @@ export default function AISettings() {
 
   const handleProviderChange = (value) => {
     setTempProvider(value);
-    const models = modelOptions[value] || [];
-    if (models.length > 0 && !models.find((m) => m.value === tempModel)) {
-      setTempModel(models[0].value);
+    const suggestions = modelSuggestions[value] || [];
+    if (
+      suggestions.length > 0 &&
+      !suggestions.includes(tempModel)
+    ) {
+      setTempModel(suggestions[0]);
     }
   };
 
@@ -55,21 +55,25 @@ export default function AISettings() {
       Toast.error(t("ai_no_api_key"));
       return;
     }
+    if (!tempModel) {
+      Toast.error("Please enter a model name");
+      return;
+    }
     setTesting(true);
     try {
       const baseUrl =
         tempBaseUrl ||
         (tempProvider === "openai"
           ? "https://api.openai.com"
-          : "https://api.anthropic.com");
+          : tempProvider === "claude"
+            ? "https://api.anthropic.com"
+            : "");
 
-      if (tempProvider === "openai") {
-        const res = await fetch(`${baseUrl}/v1/models`, {
-          headers: { Authorization: `Bearer ${tempApiKey}` },
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        Toast.success(t("ai_connection_success_openai"));
-      } else {
+      if (!baseUrl && tempProvider === "compatible") {
+        throw new Error("Base URL is required for compatible providers");
+      }
+
+      if (tempProvider === "claude") {
         const res = await fetch(`${baseUrl}/v1/messages`, {
           method: "POST",
           headers: {
@@ -88,6 +92,24 @@ export default function AISettings() {
           throw new Error(err.error?.message || `HTTP ${res.status}`);
         }
         Toast.success(t("ai_connection_success_claude"));
+      } else {
+        const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tempApiKey}`,
+          },
+          body: JSON.stringify({
+            model: tempModel,
+            max_tokens: 10,
+            messages: [{ role: "user", content: "Hi" }],
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error?.message || `HTTP ${res.status}`);
+        }
+        Toast.success(t("ai_connection_success_openai"));
       }
     } catch (e) {
       Toast.error(t("ai_connection_failed", { message: e.message }));
@@ -96,7 +118,8 @@ export default function AISettings() {
     }
   };
 
-  const currentModels = modelOptions[tempProvider] || [];
+  const suggestions = modelSuggestions[tempProvider] || [];
+  const isCompatible = tempProvider === "compatible";
 
   return (
     <div className="space-y-5">
@@ -113,6 +136,15 @@ export default function AISettings() {
           optionList={providerOptions}
           style={{ width: "100%" }}
         />
+        {isCompatible && (
+          <p
+            className="text-xs mt-1.5"
+            style={{ color: "var(--semi-color-text-3)" }}
+          >
+            Use this for any API that follows the OpenAI protocol (e.g.
+            MiniMax, DeepSeek, Ollama, vLLM, etc.)
+          </p>
+        )}
       </div>
       <div>
         <label
@@ -142,12 +174,44 @@ export default function AISettings() {
         >
           {t("ai_model")}
         </label>
-        <Select
+        <Input
           value={tempModel}
           onChange={setTempModel}
-          optionList={currentModels}
+          placeholder={
+            isCompatible
+              ? "e.g. MiniMax-Text-01, deepseek-chat, ..."
+              : suggestions[0] || "Enter model name"
+          }
           style={{ width: "100%" }}
         />
+        {suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {suggestions.map((m) => (
+              <button
+                key={m}
+                onClick={() => setTempModel(m)}
+                className="text-xs px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                style={{
+                  background:
+                    tempModel === m
+                      ? "rgba(var(--semi-blue-5), 0.15)"
+                      : "rgba(var(--semi-grey-1), 1)",
+                  color:
+                    tempModel === m
+                      ? "rgba(var(--semi-blue-5), 1)"
+                      : "var(--semi-color-text-3)",
+                  border: `1px solid ${
+                    tempModel === m
+                      ? "rgba(var(--semi-blue-5), 0.3)"
+                      : "rgba(var(--semi-grey-3), 1)"
+                  }`,
+                }}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div>
         <label
@@ -155,17 +219,22 @@ export default function AISettings() {
           style={{ color: "var(--semi-color-text-2)" }}
         >
           {t("ai_base_url")}{" "}
-          <span style={{ color: "var(--semi-color-text-3)" }}>
-            {t("ai_base_url_optional")}
+          <span
+            className={isCompatible ? "" : ""}
+            style={{ color: isCompatible ? "rgba(var(--semi-red-5), 1)" : "var(--semi-color-text-3)" }}
+          >
+            {isCompatible ? "(required)" : t("ai_base_url_optional")}
           </span>
         </label>
         <Input
           value={tempBaseUrl}
           onChange={setTempBaseUrl}
           placeholder={
-            tempProvider === "openai"
-              ? "https://api.openai.com"
-              : "https://api.anthropic.com"
+            isCompatible
+              ? "https://your-api-endpoint.com"
+              : tempProvider === "openai"
+                ? "https://api.openai.com"
+                : "https://api.anthropic.com"
           }
           style={{ width: "100%" }}
         />

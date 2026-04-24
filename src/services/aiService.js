@@ -7,7 +7,7 @@ export async function chatCompletion({
   baseUrl,
   signal,
 }) {
-  if (provider === "openai") {
+  if (provider === "openai" || provider === "compatible") {
     return callOpenAI({ messages, tools, apiKey, model, baseUrl, signal });
   } else if (provider === "claude") {
     return callClaude({ messages, tools, apiKey, model, baseUrl, signal });
