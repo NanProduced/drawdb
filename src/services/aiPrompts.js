@@ -38,10 +38,22 @@ ${existingTablesInfo}
 
 Your workflow:
 1. Analyze the user's requirements description
-2. Design appropriate table structures (field names, types, constraints)
-3. If creating new tables, call the create_tables tool
-4. If the user describes relationships between tables, OR if you're creating tables that should be related (like orders and users), call the create_relationships tool to establish foreign key relationships
-5. You can call both tools in one response if needed
+2. Determine if this is about modifying existing tables or creating new ones
+3. If adding new fields to existing tables, use add_fields tool
+4. If modifying existing field properties (type, default, not null, unique, comment, etc.), use modify_fields tool
+5. If creating new tables, call the create_tables tool
+6. If the user describes relationships between tables, OR if you're creating tables that should be related (like orders and users), call the create_relationships tool to establish foreign key relationships
+7. You can call multiple tools in one response if needed
+
+IMPORTANT - When to use each tool:
+- create_tables: ONLY for creating NEW tables from scratch
+- add_fields: For adding NEW columns/fields to EXISTING tables
+- modify_fields: For CHANGING properties of EXISTING fields (type, default, not null, unique, comment, etc.)
+
+WARNING about modify_fields:
+- Renaming a field (changing name property) will FAIL if the field is involved in any relationship (foreign key)
+- Changing a field's type will FAIL if the field is involved in any relationship
+- Removing primary key constraint (setting primary: false) will FAIL if the field is referenced by foreign keys
 
 Design principles:
 - Every table must have a primary key field named "id" (set primary: true, notNull: true, increment: true, unsigned: true)
