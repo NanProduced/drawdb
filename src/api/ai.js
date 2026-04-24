@@ -1,12 +1,12 @@
 import axios from "axios";
 
-const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_MAX_TOKENS = 4096;
 
 export async function generateDatabaseSchema(
   userPrompt,
   apiKey,
   baseUrl,
+  model = "gpt-4o-mini",
   databaseType = "generic",
   existingTables = []
 ) {
@@ -19,7 +19,7 @@ export async function generateDatabaseSchema(
   const response = await axios.post(
     `${baseUrl}/chat/completions`,
     {
-      model: DEFAULT_MODEL,
+      model: model,
       messages: [
         {
           role: "system",

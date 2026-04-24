@@ -544,7 +544,7 @@ export default function WorkSpace() {
           )}
           
           {!layout.readOnly && (
-            <div className="fixed right-5 bottom-4 z-50">
+            <div className="fixed right-5 bottom-20 z-50">
               <AIFloatingButton 
                 onClick={() => setShowAIModal(true)}
                 hasApiKey={settings.aiApiKey && settings.aiApiKey.trim() !== ""}
