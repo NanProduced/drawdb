@@ -12,6 +12,51 @@ const SAVE_DEBOUNCE_MS = 800;
 const MAX_AGENT_ITERATIONS = 10;
 const STREAM_RENDER_INTERVAL = 50;
 
+function deepCloneField(field) {
+  return {
+    id: field.id,
+    name: field.name,
+    type: field.type,
+    default: field.default,
+    check: field.check,
+    primary: field.primary,
+    unique: field.unique,
+    unsigned: field.unsigned,
+    notNull: field.notNull,
+    increment: field.increment,
+    comment: field.comment,
+    size: field.size,
+    values: field.values ? [...field.values] : [],
+    isArray: field.isArray,
+  };
+}
+
+function deepCloneTable(table) {
+  return {
+    id: table.id,
+    name: table.name,
+    x: table.x,
+    y: table.y,
+    locked: table.locked,
+    fields: table.fields ? table.fields.map(deepCloneField) : [],
+    comment: table.comment,
+    indices: table.indices ? table.indices.map((idx) => ({ ...idx })) : [],
+    color: table.color,
+  };
+}
+
+function deepCloneRelationship(rel) {
+  return { ...rel };
+}
+
+function deepCloneTables(tables) {
+  return tables ? tables.map(deepCloneTable) : [];
+}
+
+function deepCloneRelationships(relationships) {
+  return relationships ? relationships.map(deepCloneRelationship) : [];
+}
+
 function toApiMessages(messages) {
   return messages
     .filter((m) => !m.displayOnly)
@@ -150,8 +195,8 @@ export default function AIContextProvider({ children, diagramId }) {
         let nonSystemApiMessages = toApiMessages(newMessages);
 
         const currentDiagram = diagramRef.current;
-        const tables = [...currentDiagram.tables];
-        const relationships = [...currentDiagram.relationships];
+        const tables = deepCloneTables(currentDiagram.tables);
+        const relationships = deepCloneRelationships(currentDiagram.relationships);
         const database = currentDiagram.database;
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
