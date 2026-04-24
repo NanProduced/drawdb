@@ -1,6 +1,6 @@
 import { createContext, useState, useCallback, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useSettings, useDiagram } from "../hooks";
+import { useSettings, useDiagram, useUndoRedo } from "../hooks";
 import { chatCompletion } from "../services/aiService";
 import { executeTool, toolDefinitions } from "../services/aiTools";
 import { buildSystemPrompt } from "../services/aiPrompts";
@@ -58,6 +58,7 @@ export default function AIContextProvider({ children, diagramId }) {
   const loadedDiagramIdRef = useRef(null);
   const { settings } = useSettings();
   const diagram = useDiagram();
+  const { setUndoStack, setRedoStack } = useUndoRedo();
   const { t } = useTranslation();
 
   diagramRef.current = diagram;
@@ -218,7 +219,13 @@ export default function AIContextProvider({ children, diagramId }) {
               const toolResult = executeTool(
                 toolCall.name,
                 toolCall.arguments,
-                { tables, relationships, diagram: diagramRef.current },
+                { 
+                  tables, 
+                  relationships, 
+                  diagram: diagramRef.current,
+                  setUndoStack,
+                  setRedoStack,
+                },
               );
 
               const toolMessage = {
@@ -285,7 +292,7 @@ export default function AIContextProvider({ children, diagramId }) {
         abortControllerRef.current = null;
       }
     },
-    [settings, t],
+    [settings, t, setUndoStack, setRedoStack],
   );
 
   const stopGeneration = useCallback(() => {

@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { Cardinality, Constraint } from "../data/constants";
+import { Cardinality, Constraint, Action, ObjectType } from "../data/constants";
 
 function findTableIgnoreCase(tables, tableName) {
   const lowerName = tableName.toLowerCase();
@@ -372,7 +372,11 @@ export const toolDefinitions = [
   },
 ];
 
-export function executeTool(toolName, args, { tables, relationships, diagram }) {
+export function executeTool(
+  toolName,
+  args,
+  { tables, relationships, diagram, setUndoStack, setRedoStack },
+) {
   let parsedArgs;
   try {
     parsedArgs = typeof args === "string" ? JSON.parse(args) : args;
@@ -380,24 +384,33 @@ export function executeTool(toolName, args, { tables, relationships, diagram }) 
     return { success: false, error: `Failed to parse tool arguments: invalid JSON` };
   }
 
+  const context = {
+    tables,
+    relationships,
+    diagram,
+    setUndoStack,
+    setRedoStack,
+  };
+
   switch (toolName) {
     case "create_tables":
       return executeCreateTables(parsedArgs, { tables, diagram });
     case "create_relationships":
       return executeCreateRelationships(parsedArgs, { tables, relationships, diagram });
     case "add_fields":
-      return executeAddFields(parsedArgs, { tables, relationships, diagram });
+      return executeAddFields(parsedArgs, context);
     case "modify_fields":
-      return executeModifyFields(parsedArgs, { tables, relationships, diagram });
+      return executeModifyFields(parsedArgs, context);
     default:
       return { success: false, error: `Unknown tool: ${toolName}` };
   }
 }
 
-function executeAddFields(args, { tables, relationships, diagram }) {
+function executeAddFields(args, { tables, diagram, setUndoStack, setRedoStack }) {
   const { additions } = args;
   const results = [];
   const addedKeys = new Set();
+  const successfulAdditions = [];
 
   for (const addDef of additions) {
     const { table: tableName, field: fieldDef } = addDef;
@@ -473,8 +486,16 @@ function executeAddFields(args, { tables, relationships, diagram }) {
       isArray: false,
     };
 
+    const fieldIndex = table.fields.length;
     table.fields.push(newField);
     diagram.updateTable(table.id, { fields: [...table.fields] });
+
+    successfulAdditions.push({
+      tableId: table.id,
+      tableName: table.name,
+      field: { ...newField },
+      fieldIndex,
+    });
 
     results.push({
       success: true,
@@ -487,6 +508,27 @@ function executeAddFields(args, { tables, relationships, diagram }) {
 
   const successCount = results.filter((r) => r.success).length;
   const failCount = results.filter((r) => !r.success).length;
+
+  if (successCount > 0 && setUndoStack && setRedoStack) {
+    for (const addition of successfulAdditions) {
+      setUndoStack((prev) => [
+        ...prev,
+        {
+          action: Action.EDIT,
+          element: ObjectType.TABLE,
+          component: "field_add",
+          tid: addition.tableId,
+          fid: addition.field.id,
+          data: {
+            field: { ...addition.field },
+            index: addition.fieldIndex,
+          },
+          message: `[AI] Add field "${addition.field.name}" to table "${addition.tableName}"`,
+        },
+      ]);
+    }
+    setRedoStack([]);
+  }
 
   let message = "";
   if (successCount > 0) {
@@ -508,10 +550,11 @@ function executeAddFields(args, { tables, relationships, diagram }) {
   return { success: successCount > 0 || failCount === 0, message, results };
 }
 
-function executeModifyFields(args, { tables, relationships, diagram }) {
+function executeModifyFields(args, { tables, relationships, diagram, setUndoStack, setRedoStack }) {
   const { modifications } = args;
   const results = [];
   const modifiedKeys = new Set();
+  const successfulModifications = [];
 
   for (const modDef of modifications) {
     const { table: tableName, field: fieldName, changes } = modDef;
@@ -607,26 +650,41 @@ function executeModifyFields(args, { tables, relationships, diagram }) {
       "unsigned",
     ];
 
-    const updates = {};
+    const undoValues = {};
+    const redoValues = {};
     for (const key of allowedUpdates) {
       if (changes[key] !== undefined) {
-        updates[key] = changes[key];
+        undoValues[key] = field[key];
+        redoValues[key] = changes[key];
       }
     }
 
     const fieldIndex = table.fields.findIndex((f) => f.id === field.id);
     if (fieldIndex !== -1) {
-      table.fields[fieldIndex] = { ...table.fields[fieldIndex], ...updates };
+      table.fields[fieldIndex] = { ...table.fields[fieldIndex], ...redoValues };
       diagram.updateTable(table.id, { fields: [...table.fields] });
     }
 
-    const appliedChanges = Object.keys(updates);
+    const appliedChanges = Object.keys(redoValues);
+    const newFieldName = redoValues.name || field.name;
+
+    successfulModifications.push({
+      tableId: table.id,
+      tableName: table.name,
+      fieldId: field.id,
+      fieldOldName: field.name,
+      fieldNewName: newFieldName,
+      undo: { ...undoValues },
+      redo: { ...redoValues },
+      appliedChanges,
+    });
+
     results.push({
       success: true,
       table: tableName,
       tableActualName: table.name,
       field: fieldName,
-      fieldActualName: table.fields[fieldIndex]?.name || field.name,
+      fieldActualName: newFieldName,
       fieldId: field.id,
       appliedChanges: appliedChanges,
       oldValues: {
@@ -634,14 +692,34 @@ function executeModifyFields(args, { tables, relationships, diagram }) {
         type: field.type,
       },
       newValues: {
-        name: updates.name || field.name,
-        type: updates.type || field.type,
+        name: redoValues.name || field.name,
+        type: redoValues.type || field.type,
       },
     });
   }
 
   const successCount = results.filter((r) => r.success).length;
   const failCount = results.filter((r) => !r.success).length;
+
+  if (successCount > 0 && setUndoStack && setRedoStack) {
+    for (const mod of successfulModifications) {
+      const changeDesc = mod.appliedChanges.join(", ");
+      setUndoStack((prev) => [
+        ...prev,
+        {
+          action: Action.EDIT,
+          element: ObjectType.TABLE,
+          component: "field",
+          tid: mod.tableId,
+          fid: mod.fieldId,
+          undo: { ...mod.undo },
+          redo: { ...mod.redo },
+          message: `[AI] Modify field "${mod.fieldOldName}" (${changeDesc}) in table "${mod.tableName}"`,
+        },
+      ]);
+    }
+    setRedoStack([]);
+  }
 
   let message = "";
   if (successCount > 0) {
