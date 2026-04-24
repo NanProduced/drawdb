@@ -309,6 +309,8 @@ const en = {
     ai_generating: "Generating...",
     ai_generate: "Generate",
     ai_settings: "AI Settings",
+    ai_model_label: "Model",
+    ai_model_hint: "e.g., gpt-4o-mini, gpt-4o, claude-3-opus",
   },
 };
 

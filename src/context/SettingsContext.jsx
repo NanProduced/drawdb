@@ -16,17 +16,28 @@ const defaultSettings = {
   showComments: true,
   aiApiKey: "",
   aiBaseUrl: "https://api.openai.com/v1",
+  aiModel: "gpt-4o-mini",
 };
 
-export const SettingsContext = createContext(defaultSettings);
+const defaultContextValue = {
+  settings: defaultSettings,
+  setSettings: () => {},
+};
+
+export const SettingsContext = createContext(defaultContextValue);
 
 export default function SettingsContextProvider({ children }) {
   const [settings, setSettings] = useState(defaultSettings);
 
   useEffect(() => {
-    const settings = localStorage.getItem("settings");
-    if (settings) {
-      setSettings({ ...defaultSettings, ...JSON.parse(settings) });
+    try {
+      const savedSettings = localStorage.getItem("settings");
+      if (savedSettings) {
+        const parsed = JSON.parse(savedSettings);
+        setSettings({ ...defaultSettings, ...parsed });
+      }
+    } catch (error) {
+      console.error("Failed to parse settings from localStorage:", error);
     }
   }, []);
 
@@ -35,7 +46,11 @@ export default function SettingsContextProvider({ children }) {
   }, [settings.mode]);
 
   useEffect(() => {
-    localStorage.setItem("settings", JSON.stringify(settings));
+    try {
+      localStorage.setItem("settings", JSON.stringify(settings));
+    } catch (error) {
+      console.error("Failed to save settings to localStorage:", error);
+    }
   }, [settings]);
 
   return (

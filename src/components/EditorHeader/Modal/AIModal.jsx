@@ -22,9 +22,10 @@ export default function AIModal({ onGenerate }) {
   const [mode, setMode] = useState("append");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState({ type: STATUS.NONE, message: "" });
-  const [tempApiKey, setTempApiKey] = useState(settings.aiApiKey);
-  const [tempBaseUrl, setTempBaseUrl] = useState(settings.aiBaseUrl);
-  const [showSettings, setShowSettings] = useState(!settings.aiApiKey);
+  const [tempApiKey, setTempApiKey] = useState(settings.aiApiKey || "");
+  const [tempBaseUrl, setTempBaseUrl] = useState(settings.aiBaseUrl || "https://api.openai.com/v1");
+  const [tempModel, setTempModel] = useState(settings.aiModel || "gpt-4o-mini");
+  const [showSettings, setShowSettings] = useState(!settings.aiApiKey || !settings.aiApiKey.trim());
 
   const hasApiKey = settings.aiApiKey && settings.aiApiKey.trim() !== "";
 
@@ -40,6 +41,7 @@ export default function AIModal({ onGenerate }) {
       ...prev,
       aiApiKey: tempApiKey,
       aiBaseUrl: tempBaseUrl,
+      aiModel: tempModel,
     }));
     setShowSettings(false);
   };
@@ -53,8 +55,9 @@ export default function AIModal({ onGenerate }) {
       return;
     }
 
-    const apiKeyToUse = tempApiKey || settings.aiApiKey;
-    const baseUrlToUse = tempBaseUrl || settings.aiBaseUrl;
+    const apiKeyToUse = tempApiKey || settings.aiApiKey || "";
+    const baseUrlToUse = tempBaseUrl || settings.aiBaseUrl || "https://api.openai.com/v1";
+    const modelToUse = tempModel || settings.aiModel || "gpt-4o-mini";
 
     if (!apiKeyToUse || apiKeyToUse.trim() === "") {
       setShowSettings(true);
@@ -73,6 +76,7 @@ export default function AIModal({ onGenerate }) {
         prompt,
         apiKeyToUse,
         baseUrlToUse,
+        modelToUse,
         database,
         mode === "append" ? existingTables : []
       );
@@ -140,6 +144,20 @@ export default function AIModal({ onGenerate }) {
             />
             <div className="text-xs text-gray-500 mt-1">
               {t("ai_base_url_hint")}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm mb-1">
+              {t("ai_model_label")}
+            </label>
+            <Input
+              placeholder="gpt-4o-mini"
+              value={tempModel}
+              onChange={(value) => setTempModel(value)}
+            />
+            <div className="text-xs text-gray-500 mt-1">
+              {t("ai_model_hint")}
             </div>
           </div>
 
