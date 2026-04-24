@@ -143,21 +143,12 @@ export default function AIContextProvider({ children, diagramId }) {
       const currentDiagram = diagramRef.current;
 
       try {
-        const systemPrompt = buildSystemPrompt(
-          currentDiagram.database,
-          currentDiagram.tables,
-        );
-
-        const apiMessages = [
-          { role: "system", content: systemPrompt },
-          ...toApiMessages(newMessages),
-        ];
-
         abortControllerRef.current = new AbortController();
 
         let continueLoop = true;
         let iterations = 0;
         let currentMessages = [...newMessages];
+        let nonSystemApiMessages = toApiMessages(newMessages);
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
@@ -169,6 +160,17 @@ export default function AIContextProvider({ children, diagramId }) {
           currentMessages = [...currentMessages, streamingMessage];
           messagesRef.current = currentMessages;
           setMessages([...currentMessages]);
+
+          const currentDiagram = diagramRef.current;
+          const systemPrompt = buildSystemPrompt(
+            currentDiagram.database,
+            currentDiagram.tables,
+          );
+
+          const apiMessages = [
+            { role: "system", content: systemPrompt },
+            ...nonSystemApiMessages,
+          ];
 
           let lastRenderTime = 0;
 
@@ -197,7 +199,7 @@ export default function AIContextProvider({ children, diagramId }) {
           setMessages([...messagesRef.current]);
 
           if (result.toolCalls && result.toolCalls.length > 0) {
-            apiMessages.push({
+            nonSystemApiMessages.push({
               role: "assistant",
               content: result.content || null,
               tool_calls: result.toolCalls.map((tc) => ({
@@ -233,7 +235,7 @@ export default function AIContextProvider({ children, diagramId }) {
               messagesRef.current = currentMessages;
               setMessages([...currentMessages]);
 
-              apiMessages.push({
+              nonSystemApiMessages.push({
                 role: "tool",
                 tool_call_id: toolCall.id,
                 content:

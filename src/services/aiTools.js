@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { Cardinality, Constraint } from "../data/constants";
 
 export const toolDefinitions = [
   {
@@ -82,6 +83,58 @@ export const toolDefinitions = [
       required: ["tables"],
     },
   },
+  {
+    name: "create_relationships",
+    description:
+      "Create foreign key relationships between existing tables. Use this when the user describes relationships like '订单属于用户', '评论关联文章', '表A有一个表B', '表A属于表B' etc. Fields can be existing ones or just created by create_tables.",
+    parameters: {
+      type: "object",
+      properties: {
+        relationships: {
+          type: "array",
+          description: "Array of relationships to create",
+          items: {
+            type: "object",
+            properties: {
+              from_table: {
+                type: "string",
+                description: "The table containing the foreign key (e.g. 'orders' that has user_id)",
+              },
+              from_field: {
+                type: "string",
+                description: "The foreign key field name (e.g. 'user_id')",
+              },
+              to_table: {
+                type: "string",
+                description: "The target table being referenced (e.g. 'users')",
+              },
+              to_field: {
+                type: "string",
+                description: "The primary key field being referenced (usually 'id')",
+              },
+              cardinality: {
+                type: "string",
+                description: "Relationship cardinality: 'one_to_one', 'one_to_many', 'many_to_one'. Default is 'one_to_many' which is the most common (e.g. one user has many orders).",
+                enum: ["one_to_one", "one_to_many", "many_to_one"],
+              },
+              update_constraint: {
+                type: "string",
+                description: "ON UPDATE constraint action. Default is 'No action'.",
+                enum: ["No action", "Restrict", "Cascade", "Set null", "Set default"],
+              },
+              delete_constraint: {
+                type: "string",
+                description: "ON DELETE constraint action. Default is 'No action'.",
+                enum: ["No action", "Restrict", "Cascade", "Set null", "Set default"],
+              },
+            },
+            required: ["from_table", "from_field", "to_table", "to_field"],
+          },
+        },
+      },
+      required: ["relationships"],
+    },
+  },
 ];
 
 export function executeTool(toolName, args, diagram) {
@@ -95,6 +148,8 @@ export function executeTool(toolName, args, diagram) {
   switch (toolName) {
     case "create_tables":
       return executeCreateTables(parsedArgs, diagram);
+    case "create_relationships":
+      return executeCreateRelationships(parsedArgs, diagram);
     default:
       return { success: false, error: `Unknown tool: ${toolName}` };
   }
@@ -204,4 +259,156 @@ function executeCreateTables(args, diagram) {
     .join(", ")}`;
 
   return { success: true, message, results };
+}
+
+function executeCreateRelationships(args, diagram) {
+  const { relationships } = args;
+  const results = [];
+  const createdKeys = new Set();
+
+  for (const relDef of relationships) {
+    const {
+      from_table: fromTable,
+      from_field: fromField,
+      to_table: toTable,
+      to_field: toField,
+      cardinality,
+      update_constraint: updateConstraint,
+      delete_constraint: deleteConstraint,
+    } = relDef;
+
+    const fromTableName = fromTable.toLowerCase();
+    const toTableName = toTable.toLowerCase();
+    const fromFieldName = fromField.toLowerCase();
+    const toFieldName = toField.toLowerCase();
+
+    const relationshipKey = `${fromTableName}:${fromFieldName}->${toTableName}:${toFieldName}`;
+    const reverseKey = `${toTableName}:${toFieldName}->${fromTableName}:${fromFieldName}`;
+
+    if (createdKeys.has(relationshipKey) || createdKeys.has(reverseKey)) {
+      results.push({
+        success: false,
+        error: `Relationship "${fromTable}.${fromField}" -> "${toTable}.${toField}" was already created in this batch`,
+      });
+      continue;
+    }
+
+    const existingRelationship = diagram.relationships.find((r) => {
+      const startTable = diagram.tables.find((t) => t.id === r.startTableId);
+      const endTable = diagram.tables.find((t) => t.id === r.endTableId);
+      const startField = startTable?.fields.find((f) => f.id === r.startFieldId);
+      const endField = endTable?.fields.find((f) => f.id === r.endFieldId);
+
+      if (!startTable || !endTable || !startField || !endField) return false;
+
+      const currentKey = `${startTable.name.toLowerCase()}:${startField.name.toLowerCase()}->${endTable.name.toLowerCase()}:${endField.name.toLowerCase()}`;
+      const currentReverse = `${endTable.name.toLowerCase()}:${endField.name.toLowerCase()}->${startTable.name.toLowerCase()}:${startField.name.toLowerCase()}`;
+
+      return currentKey === relationshipKey || currentKey === reverseKey ||
+             currentReverse === relationshipKey || currentReverse === reverseKey;
+    });
+
+    if (existingRelationship) {
+      results.push({
+        success: false,
+        error: `Relationship "${fromTable}.${fromField}" -> "${toTable}.${toField}" already exists`,
+      });
+      continue;
+    }
+
+    const startTable = diagram.tables.find((t) => t.name.toLowerCase() === fromTableName);
+    if (!startTable) {
+      results.push({
+        success: false,
+        error: `Table "${fromTable}" not found`,
+      });
+      continue;
+    }
+
+    const endTable = diagram.tables.find((t) => t.name.toLowerCase() === toTableName);
+    if (!endTable) {
+      results.push({
+        success: false,
+        error: `Table "${toTable}" not found`,
+      });
+      continue;
+    }
+
+    const startField = startTable.fields.find((f) => f.name.toLowerCase() === fromFieldName);
+    if (!startField) {
+      results.push({
+        success: false,
+        error: `Field "${fromField}" not found in table "${fromTable}"`,
+      });
+      continue;
+    }
+
+    const endField = endTable.fields.find((f) => f.name.toLowerCase() === toFieldName);
+    if (!endField) {
+      results.push({
+        success: false,
+        error: `Field "${toField}" not found in table "${toTable}"`,
+      });
+      continue;
+    }
+
+    const validCardinalities = Object.values(Cardinality);
+    const relCardinality = cardinality && validCardinalities.includes(cardinality)
+      ? cardinality
+      : Cardinality.ONE_TO_MANY;
+
+    const validConstraints = Object.values(Constraint);
+    const relUpdateConstraint = updateConstraint && validConstraints.includes(updateConstraint)
+      ? updateConstraint
+      : Constraint.NONE;
+    const relDeleteConstraint = deleteConstraint && validConstraints.includes(deleteConstraint)
+      ? deleteConstraint
+      : Constraint.NONE;
+
+    const newRelationship = {
+      id: nanoid(),
+      name: `fk_${startTable.name}_${startField.name}_${endTable.name}`,
+      startTableId: startTable.id,
+      startFieldId: startField.id,
+      endTableId: endTable.id,
+      endFieldId: endField.id,
+      cardinality: relCardinality,
+      updateConstraint: relUpdateConstraint,
+      deleteConstraint: relDeleteConstraint,
+    };
+
+    diagram.addRelationship(newRelationship);
+    createdKeys.add(relationshipKey);
+
+    results.push({
+      success: true,
+      fromTable: fromTable,
+      fromField: fromField,
+      toTable: toTable,
+      toField: toField,
+      cardinality: relCardinality,
+    });
+  }
+
+  const successCount = results.filter((r) => r.success).length;
+  const failCount = results.filter((r) => !r.success).length;
+
+  let message = "";
+  if (successCount > 0) {
+    message += `Successfully created ${successCount} relationship(s): `;
+    message += results
+      .filter((r) => r.success)
+      .map((r) => `${r.fromTable}.${r.fromField} -> ${r.toTable}.${r.toField}`)
+      .join("; ");
+  }
+  if (failCount > 0) {
+    if (message) message += " ";
+    message += `${failCount} relationship(s) failed: `;
+    message += results
+      .filter((r) => !r.success)
+      .map((r) => r.error)
+      .join("; ");
+  }
+
+  return { success: successCount > 0 || failCount === 0, message, results };
 }
