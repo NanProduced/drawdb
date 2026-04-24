@@ -8,7 +8,6 @@ import NotesContextProvider from "../context/NotesContext";
 import TypesContextProvider from "../context/TypesContext";
 import SaveStateContextProvider from "../context/SaveStateContext";
 import EnumsContextProvider from "../context/EnumsContext";
-import AIContextProvider from "../context/AIContext";
 import WorkSpace from "../components/Workspace";
 import { useThemedPage } from "../hooks";
 
@@ -26,9 +25,7 @@ export default function Editor() {
                   <EnumsContextProvider>
                     <TablesContextProvider>
                       <SaveStateContextProvider>
-                        <AIContextProvider>
-                          <WorkSpace />
-                        </AIContextProvider>
+                        <WorkSpace />
                       </SaveStateContextProvider>
                     </TablesContextProvider>
                   </EnumsContextProvider>

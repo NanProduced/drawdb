@@ -8,7 +8,7 @@ import ChatInput from "./ChatInput";
 
 export default function AIChatWindow({ setModal }) {
   const [isOpen, setIsOpen] = useState(false);
-  const { messages, isLoading, sendMessage, stopGeneration, clearChat } =
+  const { messages, isLoading, error, sendMessage, stopGeneration, clearChat, clearError } =
     useContext(AIContext);
   const { settings } = useSettings();
   const messagesEndRef = useRef(null);
@@ -93,7 +93,11 @@ export default function AIChatWindow({ setModal }) {
         </div>
         <div className="flex items-center gap-0.5">
           <button
-            onClick={clearChat}
+            onClick={() => {
+              if (messages.length > 0) {
+                clearChat();
+              }
+            }}
             className="w-7 h-7 rounded-md flex items-center justify-center transition-colors"
             style={{ color: "var(--semi-color-text-3)" }}
             onMouseEnter={(e) => {
@@ -147,6 +151,24 @@ export default function AIChatWindow({ setModal }) {
         className="flex-1 overflow-y-auto p-4"
         style={{ background: "var(--semi-color-bg-0)" }}
       >
+        {error && (
+          <div
+            className="mb-3 px-3 py-2 rounded-lg text-xs flex items-start gap-2"
+            style={{
+              background: "rgba(var(--semi-red-5), 0.08)",
+              color: "rgba(var(--semi-red-5), 1)",
+            }}
+          >
+            <i className="fa-solid fa-circle-exclamation mt-0.5 flex-shrink-0" />
+            <span className="flex-1 break-words">{error}</span>
+            <button
+              onClick={clearError}
+              className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+            >
+              <i className="fa-solid fa-xmark" />
+            </button>
+          </div>
+        )}
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-6">
             <div

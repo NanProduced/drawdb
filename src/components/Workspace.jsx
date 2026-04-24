@@ -33,6 +33,7 @@ import { get, SHARE_FILENAME } from "../api/gists";
 import { nanoid } from "nanoid";
 import { mergeCustomTypes } from "../utils/customTypes";
 import AIChatWindow from "./AIChat/AIChatWindow";
+import AIContextProvider from "../context/AIContext";
 
 export const IdContext = createContext({
   gistId: "",
@@ -521,7 +522,9 @@ export default function WorkSpace() {
               <FloatingControls />
             </div>
           )}
-          <AIChatWindow setModal={setModal} />
+          <AIContextProvider diagramId={loadedDiagramId}>
+            <AIChatWindow setModal={setModal} />
+          </AIContextProvider>
         </div>
       </div>
       <Modal

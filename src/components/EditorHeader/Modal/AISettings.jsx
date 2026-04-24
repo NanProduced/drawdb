@@ -61,20 +61,17 @@ export default function AISettings() {
     }
     setTesting(true);
     try {
-      const baseUrl =
-        tempBaseUrl ||
-        (tempProvider === "openai"
-          ? "https://api.openai.com"
-          : tempProvider === "claude"
-            ? "https://api.anthropic.com"
-            : "");
-
-      if (!baseUrl && tempProvider === "compatible") {
-        throw new Error("Base URL is required for compatible providers");
+      let baseUrl = tempBaseUrl;
+      if (!baseUrl) {
+        if (tempProvider === "openai") baseUrl = "https://api.openai.com/v1";
+        else if (tempProvider === "claude") baseUrl = "https://api.anthropic.com/v1";
+        else throw new Error("Base URL is required for compatible providers");
       }
 
+      const base = baseUrl.replace(/\/+$/, "");
+
       if (tempProvider === "claude") {
-        const res = await fetch(`${baseUrl}/v1/messages`, {
+        const res = await fetch(`${base}/messages`, {
           method: "POST",
           headers: {
             "x-api-key": tempApiKey,
@@ -93,7 +90,7 @@ export default function AISettings() {
         }
         Toast.success(t("ai_connection_success_claude"));
       } else {
-        const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+        const res = await fetch(`${base}/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -220,7 +217,6 @@ export default function AISettings() {
         >
           {t("ai_base_url")}{" "}
           <span
-            className={isCompatible ? "" : ""}
             style={{ color: isCompatible ? "rgba(var(--semi-red-5), 1)" : "var(--semi-color-text-3)" }}
           >
             {isCompatible ? "(required)" : t("ai_base_url_optional")}

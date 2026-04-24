@@ -16,7 +16,7 @@ export async function chatCompletion({
 }
 
 async function callOpenAI({ messages, tools, apiKey, model, baseUrl, signal }) {
-  const url = `${baseUrl || "https://api.openai.com"}/v1/chat/completions`;
+  const url = (baseUrl || "https://api.openai.com/v1").replace(/\/+$/, "") + "/chat/completions";
 
   const body = {
     model,
@@ -63,7 +63,7 @@ async function callOpenAI({ messages, tools, apiKey, model, baseUrl, signal }) {
 }
 
 async function callClaude({ messages, tools, apiKey, model, baseUrl, signal }) {
-  const url = `${baseUrl || "https://api.anthropic.com"}/v1/messages`;
+  const url = (baseUrl || "https://api.anthropic.com/v1").replace(/\/+$/, "") + "/messages";
 
   const systemMessage = messages.find((m) => m.role === "system");
   const nonSystemMessages = messages.filter((m) => m.role !== "system");

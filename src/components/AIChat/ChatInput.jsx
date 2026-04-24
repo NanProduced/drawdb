@@ -18,6 +18,7 @@ export default function ChatInput({
     setText("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
+      textareaRef.current.focus();
     }
   };
 

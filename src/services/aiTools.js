@@ -85,7 +85,12 @@ export const toolDefinitions = [
 ];
 
 export function executeTool(toolName, args, diagram) {
-  const parsedArgs = typeof args === "string" ? JSON.parse(args) : args;
+  let parsedArgs;
+  try {
+    parsedArgs = typeof args === "string" ? JSON.parse(args) : args;
+  } catch {
+    return { success: false, error: `Failed to parse tool arguments: invalid JSON` };
+  }
 
   switch (toolName) {
     case "create_tables":
