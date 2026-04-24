@@ -126,7 +126,7 @@ export default function ChatMessage({ message }) {
               opacity: 0.8,
             }}
           >
-            <i className="fa-solid fa-wand-magic-sparkles" />
+            <i className="fa-solid fa-wand-magic" />
             <span>
               {message.toolCalls.map((tc) => tc.name).join(", ")}
             </span>

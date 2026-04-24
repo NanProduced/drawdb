@@ -389,7 +389,12 @@ export default function Modal({
       footer={null}
       centered
       width={600}
-      bodyStyle={{ direction: "ltr" }}
+      bodyStyle={{
+        direction: "ltr",
+        maxHeight: window.innerHeight - 200,
+        overflow: "auto",
+        paddingBottom: 16,
+      }}
     >
       <AISettings />
     </SemiUIModal>

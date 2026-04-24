@@ -39,7 +39,7 @@ export default function AIChatWindow({ setModal }) {
           className="w-7 h-7 rounded-lg flex items-center justify-center"
           style={{ background: "rgba(var(--semi-blue-5), 1)" }}
         >
-          <i className="fa-solid fa-sparkles text-white text-xs" />
+          <i className="fa-solid fa-wand-magic text-white text-xs" />
         </div>
         <span
           className="text-sm font-medium"
@@ -72,7 +72,7 @@ export default function AIChatWindow({ setModal }) {
             className="w-6 h-6 rounded-md flex items-center justify-center"
             style={{ background: "rgba(var(--semi-blue-5), 1)" }}
           >
-            <i className="fa-solid fa-sparkles text-white text-[10px]" />
+            <i className="fa-solid fa-wand-magic text-white text-[10px]" />
           </div>
           <div>
             <span
@@ -156,7 +156,7 @@ export default function AIChatWindow({ setModal }) {
                 color: "rgba(var(--semi-blue-5), 1)",
               }}
             >
-              <i className="fa-solid fa-sparkles text-xl" />
+              <i className="fa-solid fa-wand-magic text-xl" />
             </div>
             <p
               className="text-sm font-semibold mb-1.5"
