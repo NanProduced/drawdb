@@ -148,6 +148,11 @@ export default function AIContextProvider({ children, diagramId }) {
         let currentMessages = [...newMessages];
         let nonSystemApiMessages = toApiMessages(newMessages);
 
+        const currentDiagram = diagramRef.current;
+        const tables = [...currentDiagram.tables];
+        const relationships = [...currentDiagram.relationships];
+        const database = currentDiagram.database;
+
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
 
@@ -159,14 +164,7 @@ export default function AIContextProvider({ children, diagramId }) {
           messagesRef.current = currentMessages;
           setMessages([...currentMessages]);
 
-          const currentDiagram = diagramRef.current;
-          const tables = [...currentDiagram.tables];
-          const relationships = [...currentDiagram.relationships];
-
-          const systemPrompt = buildSystemPrompt(
-            currentDiagram.database,
-            tables,
-          );
+          const systemPrompt = buildSystemPrompt(database, tables);
 
           const apiMessages = [
             { role: "system", content: systemPrompt },

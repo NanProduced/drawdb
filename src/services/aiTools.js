@@ -114,7 +114,7 @@ export const toolDefinitions = [
               },
               cardinality: {
                 type: "string",
-                description: "Relationship cardinality: 'one_to_one', 'one_to_many', 'many_to_one'. Default is 'one_to_many' which is the most common (e.g. one user has many orders).",
+                description: "Relationship cardinality: 'one_to_one', 'one_to_many', 'many_to_one'. Default is 'many_to_one' which is the most common (e.g. many orders belong to one user). from_table is the table with foreign key, to_table is the referenced table.",
                 enum: ["one_to_one", "one_to_many", "many_to_one"],
               },
               update_constraint: {
@@ -356,7 +356,7 @@ function executeCreateRelationships(args, { tables, relationships, diagram }) {
     const validCardinalities = Object.values(Cardinality);
     const relCardinality = cardinality && validCardinalities.includes(cardinality)
       ? cardinality
-      : Cardinality.ONE_TO_MANY;
+      : Cardinality.MANY_TO_ONE;
 
     const validConstraints = Object.values(Constraint);
     const relUpdateConstraint = updateConstraint && validConstraints.includes(updateConstraint)
