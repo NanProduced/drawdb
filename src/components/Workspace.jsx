@@ -18,6 +18,8 @@ import {
   useEnums,
 } from "../hooks";
 import FloatingControls from "./FloatingControls";
+import AIFloatingButton from "./AIFloatingButton";
+import AIModal from "./EditorHeader/Modal/AIModal";
 import { Button, Modal, Tag } from "@douyinfe/semi-ui";
 import { IconAlertTriangle } from "@douyinfe/semi-icons";
 import { useTranslation } from "react-i18next";
@@ -52,6 +54,7 @@ export default function WorkSpace() {
   const [lastSaved, setLastSaved] = useState("");
   const [showSelectDbModal, setShowSelectDbModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
   const [selectedDb, setSelectedDb] = useState("");
   const { layout, setLayout } = useLayout();
   const { settings } = useSettings();
@@ -425,6 +428,28 @@ export default function WorkSpace() {
     setVersion(null);
   };
 
+  const handleAIGenerate = ({ tables: newTables, relationships: newRelationships, mode }) => {
+    if (mode === "replace") {
+      setTables(newTables);
+      setRelationships(newRelationships);
+      setAreas([]);
+      setNotes([]);
+      setTransform({ pan: { x: 0, y: 0 }, zoom: 1 });
+    } else {
+      setTables((prev) => [...prev, ...newTables]);
+      setRelationships((prev) =>
+        [...prev, ...newRelationships].map((r, i) => ({
+          ...r,
+          id: r.id || `${prev.length + i}`,
+        })),
+      );
+    }
+
+    setUndoStack([]);
+    setRedoStack([]);
+    setShowAIModal(false);
+  };
+
   useEffect(() => {
     if (
       tables?.length === 0 &&
@@ -517,6 +542,15 @@ export default function WorkSpace() {
               <FloatingControls />
             </div>
           )}
+          
+          {!layout.readOnly && (
+            <div className="fixed right-5 bottom-4 z-50">
+              <AIFloatingButton 
+                onClick={() => setShowAIModal(true)}
+                hasApiKey={settings.aiApiKey && settings.aiApiKey.trim() !== ""}
+              />
+            </div>
+          )}
         </div>
       </div>
       <Modal
@@ -588,6 +622,25 @@ export default function WorkSpace() {
         }}
       >
         {t("restore_warning")}
+      </Modal>
+
+      <Modal
+        visible={showAIModal}
+        centered
+        closable
+        onCancel={() => setShowAIModal(false)}
+        title={
+          <span className="flex items-center gap-2">
+            <i className="bi bi-stars text-violet-500"></i>{" "}
+            {t("ai_generate_database")}
+          </span>
+        }
+        hasCancel={true}
+        hasOk={false}
+        footer={null}
+        width={600}
+      >
+        <AIModal onGenerate={handleAIGenerate} />
       </Modal>
     </div>
   );
