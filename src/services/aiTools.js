@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 import { Cardinality, Constraint, Action, ObjectType } from "../data/constants";
-import { arrangeTablesSmart, buildUndoRedoForArrange } from "../utils/arrangeTables";
+import { arrangeTablesSmart, buildUndoRedoForArrange, formatTableNamesForDisplay } from "../utils/arrangeTables";
 
 function findTableIgnoreCase(tables, tableName) {
   const lowerName = tableName.toLowerCase();
@@ -1064,26 +1064,39 @@ function executeArrangeTables(args, { tables, relationships, diagram, setUndoSta
   const { moves, tablesToArrange } = arrangeResult;
 
   if (moves.length > 0) {
-    moves.forEach((move) => {
+    const MAX_DISPLAY_ITEMS = 3;
+    
+    moves.forEach((move, index) => {
       const table = tables.find((t) => t.id === move.tableId);
       if (table) {
         table.x = move.newX;
         table.y = move.newY;
         diagram.updateTable(move.tableId, { x: move.newX, y: move.newY });
 
-        results.push({
-          success: true,
-          table_name: move.tableName,
-          table_id: move.tableId,
-          action: "moved",
-          old_x: move.oldX,
-          old_y: move.oldY,
-          new_x: move.newX,
-          new_y: move.newY,
-          display_text: `${move.tableName} (${Math.round(move.oldX)},${Math.round(move.oldY)}) → (${Math.round(move.newX)},${Math.round(move.newY)})`,
-        });
+        if (index < MAX_DISPLAY_ITEMS) {
+          results.push({
+            success: true,
+            table_name: move.tableName,
+            table_id: move.tableId,
+            action: "moved",
+            old_x: move.oldX,
+            old_y: move.oldY,
+            new_x: move.newX,
+            new_y: move.newY,
+            display_text: move.tableName,
+          });
+        }
       }
     });
+
+    if (moves.length > MAX_DISPLAY_ITEMS) {
+      const remaining = moves.length - MAX_DISPLAY_ITEMS;
+      results.push({
+        success: true,
+        action: "summary",
+        display_text: `等${remaining}张`,
+      });
+    }
 
     if (setUndoStack && setRedoStack) {
       const undoRedoEntry = buildUndoRedoForArrange(moves);
@@ -1112,11 +1125,13 @@ function executeArrangeTables(args, { tables, relationships, diagram, setUndoSta
 
   let message = "";
   if (moves.length > 0) {
-    message = `Arranged ${moves.length} table(s): ${moves.map((m) => m.tableName).join(", ")}`;
+    const movedNames = moves.map((m) => m.tableName);
+    const formattedNames = formatTableNamesForDisplay(movedNames, 3);
+    message = `已调整 ${moves.length} 张表的位置：${formattedNames}`;
   } else if (tablesToArrange.length > 0) {
-    message = `No table movements needed. ${tablesToArrange.length} table(s) checked but already well positioned.`;
+    message = `无需移动，${tablesToArrange.length} 张表检查后位置已良好。`;
   } else {
-    message = "No tables were selected for arrangement.";
+    message = "未选择需要整理的表。";
   }
 
   const summary = buildToolResultSummary(
