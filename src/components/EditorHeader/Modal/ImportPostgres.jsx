@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Button,
   Input,
@@ -66,6 +67,7 @@ export default function ImportPostgres({
   setOverwrite,
   overwrite,
 }) {
+  const { t } = useTranslation();
   const [connection, setConnection] = useState(loadSavedConnection);
   const [status, setStatus] = useState({
     type: STATUS.NONE,
@@ -75,16 +77,25 @@ export default function ImportPostgres({
   const [fetchingSchema, setFetchingSchema] = useState(false);
   const [schemaData, setSchemaData] = useState(null);
 
-  const updateField = (field, value) => {
-    setConnection((prev) => ({ ...prev, [field]: value }));
-    setStatus({ type: STATUS.NONE, message: "" });
-  };
+  const updateField = useCallback(
+    (field, value) => {
+      setConnection((prev) => ({ ...prev, [field]: value }));
+      setStatus({ type: STATUS.NONE, message: "" });
+      if (schemaData) {
+        setSchemaData(null);
+        if (setFetchedSchema) {
+          setFetchedSchema(null);
+        }
+      }
+    },
+    [schemaData, setFetchedSchema]
+  );
 
   const handleTestConnection = async () => {
     if (!connection.host || !connection.port || !connection.database || !connection.user) {
       setStatus({
         type: STATUS.ERROR,
-        message: "Please fill in all required fields (Host, Port, Database, User)",
+        message: t("postgres_please_fill_fields"),
       });
       return;
     }
@@ -96,10 +107,10 @@ export default function ImportPostgres({
       const result = await testConnection(connection);
       setStatus({
         type: STATUS.OK,
-        message: result.message || "Connection successful!",
+        message: result.message || t("postgres_connection_success"),
       });
     } catch (err) {
-      let errorMessage = "Connection failed";
+      let errorMessage = t("postgres_fetch_failed");
       if (err instanceof PostgresConnectionError) {
         errorMessage = err.message;
         if (err.type) {
@@ -121,7 +132,7 @@ export default function ImportPostgres({
     if (!connection.host || !connection.port || !connection.database || !connection.user) {
       setStatus({
         type: STATUS.ERROR,
-        message: "Please fill in all required fields (Host, Port, Database, User)",
+        message: t("postgres_please_fill_fields"),
       });
       return;
     }
@@ -144,13 +155,13 @@ export default function ImportPostgres({
         }
         setStatus({
           type: STATUS.OK,
-          message: `Successfully fetched ${result.data.tables?.length || 0} tables. Ready to import.`,
+          message: t("postgres_tables_fetched", { count: result.data.tables?.length || 0 }),
         });
       } else {
         throw new Error("Invalid response from server");
       }
     } catch (err) {
-      let errorMessage = "Failed to fetch schema";
+      let errorMessage = t("postgres_fetch_failed");
       if (err instanceof PostgresConnectionError) {
         errorMessage = err.message;
         if (err.type) {
@@ -170,109 +181,114 @@ export default function ImportPostgres({
 
   const tableColumns = [
     {
-      title: "Table",
+      title: t("name"),
       dataIndex: "name",
       key: "name",
       width: 180,
     },
     {
-      title: "Type",
+      title: t("type"),
       dataIndex: "tableType",
       key: "tableType",
       width: 100,
-      render: (text) => (text === "BASE TABLE" ? "Table" : text === "VIEW" ? "View" : text),
+      render: (text) =>
+        text === "BASE TABLE"
+          ? t("postgres_table_type_table")
+          : text === "VIEW"
+            ? t("postgres_table_type_view")
+            : text,
     },
     {
-      title: "Columns",
+      title: t("postgres_columns"),
       dataIndex: "fields",
       key: "fields",
       width: 80,
       render: (fields) => fields?.length || 0,
     },
     {
-      title: "Comment",
+      title: t("comment"),
       dataIndex: "comment",
       key: "comment",
-      render: (text) => text || "-",
+      render: (text) => text || t("postgres_na"),
     },
   ];
 
   const fieldColumns = [
     {
-      title: "Name",
+      title: t("name"),
       dataIndex: "name",
       key: "name",
       width: 150,
     },
     {
-      title: "Type",
+      title: t("type"),
       dataIndex: "type",
       key: "type",
       width: 120,
     },
     {
-      title: "Size",
+      title: t("size"),
       dataIndex: "size",
       key: "size",
       width: 80,
-      render: (text) => text || "-",
+      render: (text) => text || t("postgres_na"),
     },
     {
-      title: "Default",
+      title: t("default_value"),
       dataIndex: "defaultValue",
       key: "defaultValue",
-      render: (text) => text || "-",
+      render: (text) => text || t("postgres_na"),
     },
     {
-      title: "PK",
+      title: t("primary"),
       dataIndex: "isPrimaryKey",
       key: "isPrimaryKey",
       width: 40,
-      render: (val) => (val ? "✓" : ""),
+      render: (val) => (val ? t("postgres_yes") : t("postgres_no")),
     },
     {
-      title: "Unique",
+      title: t("unique"),
       dataIndex: "isUnique",
       key: "isUnique",
       width: 50,
-      render: (val) => (val ? "✓" : ""),
+      render: (val) => (val ? t("postgres_yes") : t("postgres_no")),
     },
     {
-      title: "Nullable",
+      title: t("nullable"),
       dataIndex: "isNullable",
       key: "isNullable",
       width: 60,
-      render: (val) => (val ? "✓" : ""),
+      render: (val) => (val ? t("postgres_yes") : t("postgres_no")),
     },
   ];
 
   const fkColumns = [
     {
-      title: "Constraint",
+      title: t("name"),
       dataIndex: "constraintName",
       key: "constraintName",
       width: 180,
     },
     {
-      title: "Column",
+      title: t("name"),
       dataIndex: "columnName",
       key: "columnName",
       width: 120,
     },
     {
-      title: "References",
+      title: t("foreign"),
       key: "references",
       render: (_, record) =>
         `${record.foreignTableName}.${record.foreignColumnName}`,
     },
     {
-      title: "On Update",
+      title: t("on_update"),
       dataIndex: "updateRule",
       key: "updateRule",
       width: 100,
     },
     {
-      title: "On Delete",
+      title: t("on_delete"),
       dataIndex: "deleteRule",
       key: "deleteRule",
       width: 100,
@@ -287,7 +303,8 @@ export default function ImportPostgres({
             className="block text-xs font-medium mb-1.5"
             style={{ color: "var(--semi-color-text-2)" }}
           >
-            Host <span style={{ color: "rgba(var(--semi-red-5), 1)" }}>*</span>
+            {t("postgres_host")}{" "}
+            <span style={{ color: "rgba(var(--semi-red-5), 1)" }}>*</span>
           </label>
           <Input
             value={connection.host}
@@ -301,7 +318,8 @@ export default function ImportPostgres({
             className="block text-xs font-medium mb-1.5"
             style={{ color: "var(--semi-color-text-2)" }}
           >
-            Port <span style={{ color: "rgba(var(--semi-red-5), 1)" }}>*</span>
+            {t("postgres_port")}{" "}
+            <span style={{ color: "rgba(var(--semi-red-5), 1)" }}>*</span>
           </label>
           <Input
             value={connection.port}
@@ -315,7 +333,8 @@ export default function ImportPostgres({
             className="block text-xs font-medium mb-1.5"
             style={{ color: "var(--semi-color-text-2)" }}
           >
-            Database <span style={{ color: "rgba(var(--semi-red-5), 1)" }}>*</span>
+            {t("postgres_database")}{" "}
+            <span style={{ color: "rgba(var(--semi-red-5), 1)" }}>*</span>
           </label>
           <Input
             value={connection.database}
@@ -329,7 +348,7 @@ export default function ImportPostgres({
             className="block text-xs font-medium mb-1.5"
             style={{ color: "var(--semi-color-text-2)" }}
           >
-            Schema
+            {t("postgres_schema")}
           </label>
           <Input
             value={connection.schema}
@@ -343,7 +362,8 @@ export default function ImportPostgres({
             className="block text-xs font-medium mb-1.5"
             style={{ color: "var(--semi-color-text-2)" }}
           >
-            User <span style={{ color: "rgba(var(--semi-red-5), 1)" }}>*</span>
+            {t("postgres_user")}{" "}
+            <span style={{ color: "rgba(var(--semi-red-5), 1)" }}>*</span>
           </label>
           <Input
             value={connection.user}
@@ -357,13 +377,13 @@ export default function ImportPostgres({
             className="block text-xs font-medium mb-1.5"
             style={{ color: "var(--semi-color-text-2)" }}
           >
-            Password
+            {t("postgres_password")}
           </label>
           <Input
             mode="password"
             value={connection.password}
             onChange={(value) => updateField("password", value)}
-            placeholder="Enter password"
+            placeholder=""
             style={{ width: "100%" }}
           />
         </div>
@@ -376,13 +396,17 @@ export default function ImportPostgres({
             onClick={handleFetchSchema}
             loading={fetchingSchema}
           >
-            {fetchingSchema ? "Fetching Schema..." : "Fetch Schema"}
+            {fetchingSchema
+              ? t("postgres_fetching_schema")
+              : t("postgres_fetch_schema")}
           </Button>
           <Button
             onClick={handleTestConnection}
             loading={testingConnection}
           >
-            {testingConnection ? "Testing..." : "Test Connection"}
+            {testingConnection
+              ? t("postgres_testing")
+              : t("postgres_test_connection")}
           </Button>
         </Space>
       </div>
@@ -394,7 +418,7 @@ export default function ImportPostgres({
             checked={overwrite}
             onChange={(e) => setOverwrite(e.target.checked)}
           >
-            Overwrite existing diagram
+            {t("overwrite_existing_diagram")}
           </Checkbox>
         </div>
       )}
@@ -420,7 +444,7 @@ export default function ImportPostgres({
               overflow: "hidden",
             }}
           >
-            <TabPane tab="Tables" itemKey="tables">
+            <TabPane tab={t("postgres_tables")} itemKey="tables">
               <div
                 style={{
                   maxHeight: "350px",
@@ -437,7 +461,7 @@ export default function ImportPostgres({
               </div>
             </TabPane>
             {schemaData.tables?.length > 0 && (
-              <TabPane tab="Columns" itemKey="columns">
+              <TabPane tab={t("postgres_columns")} itemKey="columns">
                 <div
                   style={{
                     maxHeight: "350px",
@@ -463,7 +487,7 @@ export default function ImportPostgres({
                           className="font-medium"
                           style={{ color: "var(--semi-color-text-2)" }}
                         >
-                          Table:
+                          {t("name")}:
                         </span>{" "}
                         {record._tableName}
                         {record.comment && (
@@ -472,7 +496,7 @@ export default function ImportPostgres({
                               className="font-medium"
                               style={{ color: "var(--semi-color-text-2)" }}
                             >
-                              Comment:
+                              {t("comment")}:
                             </span>{" "}
                             {record.comment}
                           </div>
@@ -484,7 +508,7 @@ export default function ImportPostgres({
               </TabPane>
             )}
             {schemaData.tables?.some((t) => t.foreignKeys?.length > 0) && (
-              <TabPane tab="Foreign Keys" itemKey="foreignKeys">
+              <TabPane tab={t("postgres_foreign_keys")} itemKey="foreignKeys">
                 <div
                   style={{
                     maxHeight: "350px",
@@ -510,7 +534,7 @@ export default function ImportPostgres({
                           className="font-medium"
                           style={{ color: "var(--semi-color-text-2)" }}
                         >
-                          From Table:
+                          {t("name")}:
                         </span>{" "}
                         {record._tableName}
                       </div>
@@ -519,7 +543,7 @@ export default function ImportPostgres({
                 </div>
               </TabPane>
             )}
-            <TabPane tab="Raw JSON" itemKey="json">
+            <TabPane tab={t("postgres_raw_json")} itemKey="json">
               <div
                 className="p-3 rounded text-xs font-mono"
                 style={{
