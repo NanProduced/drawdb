@@ -11,6 +11,63 @@ function findFieldIgnoreCase(table, fieldName) {
   return table?.fields.find((f) => f.name.toLowerCase() === lowerName);
 }
 
+function formatFieldForSummary(field) {
+  const constraints = [];
+  if (field.primary) constraints.push("PK");
+  if (field.notNull) constraints.push("NOT NULL");
+  if (field.unique) constraints.push("UNIQUE");
+  if (field.increment) constraints.push("AUTO_INCREMENT");
+  if (field.unsigned) constraints.push("UNSIGNED");
+
+  const typeWithSize = field.size ? `${field.type}(${field.size})` : field.type;
+  let result = `${field.name} ${typeWithSize}`;
+
+  if (constraints.length > 0) {
+    result += ` [${constraints.join(", ")}]`;
+  }
+
+  if (field.default) {
+    result += ` default: "${field.default}"`;
+  }
+
+  if (field.comment) {
+    result += ` -- ${field.comment}`;
+  }
+
+  return result;
+}
+
+const cardinalityDisplayNames = {
+  [Cardinality.ONE_TO_ONE]: "one-to-one",
+  [Cardinality.ONE_TO_MANY]: "one-to-many",
+  [Cardinality.MANY_TO_ONE]: "many-to-one",
+};
+
+function buildToolResultSummary(toolName, successCount, failCount, details, affectedTables, affectedRelationships) {
+  const summary = {
+    tool: toolName,
+    success: successCount > 0 || failCount === 0,
+    successCount,
+    failCount,
+    message: "",
+    details,
+    affected_tables: affectedTables || [],
+    affected_relationships: affectedRelationships || [],
+  };
+
+  let message = "";
+  if (successCount > 0) {
+    message += `Successfully executed ${toolName}: ${successCount} operation(s) succeeded.`;
+  }
+  if (failCount > 0) {
+    if (message) message += " ";
+    message += `${failCount} operation(s) failed.`;
+  }
+
+  summary.message = message;
+  return summary;
+}
+
 function getAffectedRelationships(relationships, tables, tableId, fieldId) {
   return relationships.filter((r) => {
     return (
@@ -411,6 +468,7 @@ function executeAddFields(args, { tables, diagram, setUndoStack, setRedoStack })
   const results = [];
   const addedKeys = new Set();
   const successfulAdditions = [];
+  const affectedTableIds = new Set();
 
   for (const addDef of additions) {
     const { table: tableName, field: fieldDef } = addDef;
@@ -419,6 +477,7 @@ function executeAddFields(args, { tables, diagram, setUndoStack, setRedoStack })
       results.push({
         success: false,
         error: `Invalid addition: must specify "table" and "field"`,
+        requested: { table: tableName, field: fieldDef },
       });
       continue;
     }
@@ -427,7 +486,7 @@ function executeAddFields(args, { tables, diagram, setUndoStack, setRedoStack })
       results.push({
         success: false,
         error: `Field definition must include "name" and "type"`,
-        table: tableName,
+        requested: { table: tableName, field: fieldDef },
       });
       continue;
     }
@@ -437,8 +496,7 @@ function executeAddFields(args, { tables, diagram, setUndoStack, setRedoStack })
       results.push({
         success: false,
         error: `Table "${tableName}" not found`,
-        table: tableName,
-        field: fieldDef.name,
+        requested: { table: tableName, field: fieldDef.name },
       });
       continue;
     }
@@ -450,8 +508,7 @@ function executeAddFields(args, { tables, diagram, setUndoStack, setRedoStack })
       results.push({
         success: false,
         error: `Field "${fieldDef.name}" was already added to table "${tableName}" in this batch`,
-        table: tableName,
-        field: fieldDef.name,
+        requested: { table: tableName, field: fieldDef.name },
       });
       continue;
     }
@@ -461,8 +518,7 @@ function executeAddFields(args, { tables, diagram, setUndoStack, setRedoStack })
       results.push({
         success: false,
         error: `Field "${fieldDef.name}" already exists in table "${tableName}"`,
-        table: tableName,
-        field: fieldDef.name,
+        requested: { table: tableName, field: fieldDef.name },
       });
       continue;
     }
@@ -489,6 +545,7 @@ function executeAddFields(args, { tables, diagram, setUndoStack, setRedoStack })
     const fieldIndex = table.fields.length;
     table.fields.push(newField);
     diagram.updateTable(table.id, { fields: [...table.fields] });
+    affectedTableIds.add(table.id);
 
     successfulAdditions.push({
       tableId: table.id,
@@ -497,12 +554,16 @@ function executeAddFields(args, { tables, diagram, setUndoStack, setRedoStack })
       fieldIndex,
     });
 
+    const fieldSummary = formatFieldForSummary(newField);
     results.push({
       success: true,
       table: tableName,
-      tableActualName: table.name,
-      field: fieldDef.name,
-      fieldId: newField.id,
+      table_id: table.id,
+      table_actual_name: table.name,
+      field_name: fieldDef.name,
+      field_id: newField.id,
+      field_index: fieldIndex,
+      field_summary: fieldSummary,
     });
   }
 
@@ -530,12 +591,24 @@ function executeAddFields(args, { tables, diagram, setUndoStack, setRedoStack })
     setRedoStack([]);
   }
 
+  const affectedTables = Array.from(affectedTableIds).map((tableId) => {
+    const table = tables.find((t) => t.id === tableId);
+    return {
+      name: table?.name,
+      id: tableId,
+      field_count: table?.fields.length,
+      added_fields: successfulAdditions
+        .filter((a) => a.tableId === tableId)
+        .map((a) => formatFieldForSummary(a.field)),
+    };
+  });
+
   let message = "";
   if (successCount > 0) {
     message += `Successfully added ${successCount} field(s): `;
     message += results
       .filter((r) => r.success)
-      .map((r) => `${r.tableActualName}.${r.field}`)
+      .map((r) => `${r.table_actual_name}.${r.field_name}`)
       .join("; ");
   }
   if (failCount > 0) {
@@ -547,7 +620,16 @@ function executeAddFields(args, { tables, diagram, setUndoStack, setRedoStack })
       .join("; ");
   }
 
-  return { success: successCount > 0 || failCount === 0, message, results };
+  const summary = buildToolResultSummary(
+    "add_fields",
+    successCount,
+    failCount,
+    results,
+    affectedTables,
+    []
+  );
+  summary.message = message;
+  return summary;
 }
 
 function executeModifyFields(args, { tables, relationships, diagram, setUndoStack, setRedoStack }) {
@@ -555,6 +637,7 @@ function executeModifyFields(args, { tables, relationships, diagram, setUndoStac
   const results = [];
   const modifiedKeys = new Set();
   const successfulModifications = [];
+  const affectedTableIds = new Set();
 
   for (const modDef of modifications) {
     const { table: tableName, field: fieldName, changes } = modDef;
@@ -563,6 +646,7 @@ function executeModifyFields(args, { tables, relationships, diagram, setUndoStac
       results.push({
         success: false,
         error: `Invalid modification: must specify "table", "field", and "changes"`,
+        requested: { table: tableName, field: fieldName, changes },
       });
       continue;
     }
@@ -572,8 +656,7 @@ function executeModifyFields(args, { tables, relationships, diagram, setUndoStac
       results.push({
         success: false,
         error: `Table "${tableName}" not found`,
-        table: tableName,
-        field: fieldName,
+        requested: { table: tableName, field: fieldName },
       });
       continue;
     }
@@ -583,8 +666,7 @@ function executeModifyFields(args, { tables, relationships, diagram, setUndoStac
       results.push({
         success: false,
         error: `Field "${fieldName}" not found in table "${tableName}"`,
-        table: tableName,
-        field: fieldName,
+        requested: { table: tableName, field: fieldName },
       });
       continue;
     }
@@ -594,8 +676,7 @@ function executeModifyFields(args, { tables, relationships, diagram, setUndoStac
       results.push({
         success: false,
         error: `Field "${field.name}" in table "${table.name}" was already modified in this batch`,
-        table: tableName,
-        field: fieldName,
+        requested: { table: tableName, field: fieldName },
       });
       continue;
     }
@@ -612,9 +693,8 @@ function executeModifyFields(args, { tables, relationships, diagram, setUndoStac
       results.push({
         success: false,
         error: constraintIssues.map((i) => i.message).join("; "),
-        table: tableName,
-        field: fieldName,
-        constraintIssues: constraintIssues,
+        requested: { table: tableName, field: fieldName },
+        constraint_issues: constraintIssues,
       });
       continue;
     }
@@ -628,8 +708,7 @@ function executeModifyFields(args, { tables, relationships, diagram, setUndoStac
         results.push({
           success: false,
           error: `Cannot rename "${field.name}" to "${changes.name}": field with this name already exists in table "${table.name}"`,
-          table: tableName,
-          field: fieldName,
+          requested: { table: tableName, field: fieldName },
         });
         continue;
       }
@@ -660,13 +739,17 @@ function executeModifyFields(args, { tables, relationships, diagram, setUndoStac
     }
 
     const fieldIndex = table.fields.findIndex((f) => f.id === field.id);
+    const oldFieldSummary = formatFieldForSummary(field);
+    
     if (fieldIndex !== -1) {
       table.fields[fieldIndex] = { ...table.fields[fieldIndex], ...redoValues };
       diagram.updateTable(table.id, { fields: [...table.fields] });
     }
 
+    const newFieldSummary = formatFieldForSummary(table.fields[fieldIndex]);
     const appliedChanges = Object.keys(redoValues);
     const newFieldName = redoValues.name || field.name;
+    affectedTableIds.add(table.id);
 
     successfulModifications.push({
       tableId: table.id,
@@ -677,21 +760,26 @@ function executeModifyFields(args, { tables, relationships, diagram, setUndoStac
       undo: { ...undoValues },
       redo: { ...redoValues },
       appliedChanges,
+      oldFieldSummary,
+      newFieldSummary,
     });
 
     results.push({
       success: true,
       table: tableName,
-      tableActualName: table.name,
+      table_id: table.id,
+      table_actual_name: table.name,
       field: fieldName,
-      fieldActualName: newFieldName,
-      fieldId: field.id,
-      appliedChanges: appliedChanges,
-      oldValues: {
+      field_actual_name: newFieldName,
+      field_id: field.id,
+      applied_changes: appliedChanges,
+      old_summary: oldFieldSummary,
+      new_summary: newFieldSummary,
+      old_values: {
         name: field.name,
         type: field.type,
       },
-      newValues: {
+      new_values: {
         name: redoValues.name || field.name,
         type: redoValues.type || field.type,
       },
@@ -721,14 +809,32 @@ function executeModifyFields(args, { tables, relationships, diagram, setUndoStac
     setRedoStack([]);
   }
 
+  const affectedTables = Array.from(affectedTableIds).map((tableId) => {
+    const table = tables.find((t) => t.id === tableId);
+    return {
+      name: table?.name,
+      id: tableId,
+      field_count: table?.fields.length,
+      modified_fields: successfulModifications
+        .filter((m) => m.tableId === tableId)
+        .map((m) => ({
+          old_name: m.fieldOldName,
+          new_name: m.fieldNewName,
+          changes: m.appliedChanges,
+          old_summary: m.oldFieldSummary,
+          new_summary: m.newFieldSummary,
+        })),
+    };
+  });
+
   let message = "";
   if (successCount > 0) {
     message += `Successfully modified ${successCount} field(s): `;
     message += results
       .filter((r) => r.success)
       .map((r) => {
-        const changes = r.appliedChanges.join(", ");
-        return `${r.tableActualName}.${r.fieldActualName} (${changes})`;
+        const changes = r.applied_changes.join(", ");
+        return `${r.table_actual_name}.${r.field_actual_name} (${changes})`;
       })
       .join("; ");
   }
@@ -741,7 +847,16 @@ function executeModifyFields(args, { tables, relationships, diagram, setUndoStac
       .join("; ");
   }
 
-  return { success: successCount > 0 || failCount === 0, message, results };
+  const summary = buildToolResultSummary(
+    "modify_fields",
+    successCount,
+    failCount,
+    results,
+    affectedTables,
+    []
+  );
+  summary.message = message;
+  return summary;
 }
 
 function executeCreateTables(args, { tables, diagram }) {
@@ -751,6 +866,7 @@ function executeCreateTables(args, { tables, diagram }) {
     t.name.toLowerCase(),
   );
   const createdNames = [];
+  const createdTables = [];
 
   const baseOffset = tables.length;
 
@@ -761,6 +877,7 @@ function executeCreateTables(args, { tables, diagram }) {
       results.push({
         success: false,
         error: `Table "${tableDef.name}" already exists`,
+        requested_table: tableDef.name,
       });
       return;
     }
@@ -785,6 +902,7 @@ function executeCreateTables(args, { tables, diagram }) {
     }));
 
     const hasPrimary = fields.some((f) => f.primary);
+    let autoAddedId = false;
     if (!hasPrimary) {
       fields.unshift({
         id: nanoid(),
@@ -802,6 +920,7 @@ function executeCreateTables(args, { tables, diagram }) {
         values: [],
         isArray: false,
       });
+      autoAddedId = true;
     }
 
     const tableColors = [
@@ -829,32 +948,66 @@ function executeCreateTables(args, { tables, diagram }) {
 
     diagram.addTable({ table: newTable, index: baseOffset + successIndex });
     tables.push(newTable);
+    createdTables.push(newTable);
+
+    const fieldSummaries = fields.map(formatFieldForSummary);
     results.push({
       success: true,
       tableName: tableDef.name,
+      table_name: tableDef.name,
+      table_id: newTable.id,
       fieldCount: fields.length,
+      field_count: fields.length,
+      auto_added_id: autoAddedId,
+      fields: fieldSummaries,
+      comment: tableDef.comment || "",
     });
   });
 
   const successCount = results.filter((r) => r.success).length;
   const failCount = results.filter((r) => !r.success).length;
 
-  let message = `Successfully created ${successCount} table(s).`;
-  if (failCount > 0) {
-    message += ` ${failCount} table(s) skipped (already exist).`;
-  }
-  message += ` Tables: ${results
-    .filter((r) => r.success)
-    .map((r) => r.tableName)
-    .join(", ")}`;
+  const affectedTables = createdTables.map((t) => ({
+    name: t.name,
+    id: t.id,
+    field_count: t.fields.length,
+    fields: t.fields.map(formatFieldForSummary),
+  }));
 
-  return { success: true, message, results };
+  let message = "";
+  if (successCount > 0) {
+    message += `Successfully created ${successCount} table(s): `;
+    message += results
+      .filter((r) => r.success)
+      .map((r) => r.table_name)
+      .join(", ");
+  }
+  if (failCount > 0) {
+    if (message) message += " ";
+    message += `${failCount} table(s) skipped (already exist): `;
+    message += results
+      .filter((r) => !r.success)
+      .map((r) => r.requested_table)
+      .join(", ");
+  }
+
+  const summary = buildToolResultSummary(
+    "create_tables",
+    successCount,
+    failCount,
+    results,
+    affectedTables,
+    []
+  );
+  summary.message = message;
+  return summary;
 }
 
 function executeCreateRelationships(args, { tables, relationships, diagram }) {
   const { relationships: relationshipsToCreate } = args;
   const results = [];
   const createdKeys = new Set();
+  const createdRelationships = [];
 
   for (const relDef of relationshipsToCreate) {
     const {
@@ -879,6 +1032,7 @@ function executeCreateRelationships(args, { tables, relationships, diagram }) {
       results.push({
         success: false,
         error: `Relationship "${fromTable}.${fromField}" -> "${toTable}.${toField}" was already created in this batch`,
+        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
       });
       continue;
     }
@@ -902,6 +1056,7 @@ function executeCreateRelationships(args, { tables, relationships, diagram }) {
       results.push({
         success: false,
         error: `Relationship "${fromTable}.${fromField}" -> "${toTable}.${toField}" already exists`,
+        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
       });
       continue;
     }
@@ -911,6 +1066,7 @@ function executeCreateRelationships(args, { tables, relationships, diagram }) {
       results.push({
         success: false,
         error: `Table "${fromTable}" not found`,
+        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
       });
       continue;
     }
@@ -920,6 +1076,7 @@ function executeCreateRelationships(args, { tables, relationships, diagram }) {
       results.push({
         success: false,
         error: `Table "${toTable}" not found`,
+        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
       });
       continue;
     }
@@ -929,6 +1086,7 @@ function executeCreateRelationships(args, { tables, relationships, diagram }) {
       results.push({
         success: false,
         error: `Field "${fromField}" not found in table "${fromTable}"`,
+        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
       });
       continue;
     }
@@ -938,6 +1096,7 @@ function executeCreateRelationships(args, { tables, relationships, diagram }) {
       results.push({
         success: false,
         error: `Field "${toField}" not found in table "${toTable}"`,
+        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
       });
       continue;
     }
@@ -955,6 +1114,8 @@ function executeCreateRelationships(args, { tables, relationships, diagram }) {
       ? deleteConstraint
       : Constraint.NONE;
 
+    const cardinalityDisplay = cardinalityDisplayNames[relCardinality] || relCardinality;
+
     const newRelationship = {
       id: nanoid(),
       name: `fk_${startTable.name}_${startField.name}_${endTable.name}`,
@@ -970,26 +1131,61 @@ function executeCreateRelationships(args, { tables, relationships, diagram }) {
     diagram.addRelationship(newRelationship);
     relationships.push(newRelationship);
     createdKeys.add(relationshipKey);
+    createdRelationships.push(newRelationship);
+
+    const constraints = [];
+    if (relUpdateConstraint !== Constraint.NONE) {
+      constraints.push(`ON UPDATE: ${relUpdateConstraint}`);
+    }
+    if (relDeleteConstraint !== Constraint.NONE) {
+      constraints.push(`ON DELETE: ${relDeleteConstraint}`);
+    }
 
     results.push({
       success: true,
-      fromTable: fromTable,
-      fromField: fromField,
-      toTable: toTable,
-      toField: toField,
+      relationship_id: newRelationship.id,
+      relationship_name: newRelationship.name,
+      from_table: fromTable,
+      from_table_id: startTable.id,
+      from_field: fromField,
+      from_field_id: startField.id,
+      to_table: toTable,
+      to_table_id: endTable.id,
+      to_field: toField,
+      to_field_id: endField.id,
       cardinality: relCardinality,
+      cardinality_display: cardinalityDisplay,
+      constraints: constraints.length > 0 ? constraints : undefined,
     });
   }
 
   const successCount = results.filter((r) => r.success).length;
   const failCount = results.filter((r) => !r.success).length;
 
+  const affectedRelationships = createdRelationships.map((r) => {
+    const startTable = tables.find((t) => t.id === r.startTableId);
+    const endTable = tables.find((t) => t.id === r.endTableId);
+    const startField = startTable?.fields.find((f) => f.id === r.startFieldId);
+    const endField = endTable?.fields.find((f) => f.id === r.endFieldId);
+
+    return {
+      id: r.id,
+      name: r.name,
+      from_table: startTable?.name,
+      from_field: startField?.name,
+      to_table: endTable?.name,
+      to_field: endField?.name,
+      cardinality: r.cardinality,
+      cardinality_display: cardinalityDisplayNames[r.cardinality] || r.cardinality,
+    };
+  });
+
   let message = "";
   if (successCount > 0) {
     message += `Successfully created ${successCount} relationship(s): `;
     message += results
       .filter((r) => r.success)
-      .map((r) => `${r.fromTable}.${r.fromField} -> ${r.toTable}.${r.toField}`)
+      .map((r) => `${r.from_table}.${r.from_field} -> ${r.to_table}.${r.to_field} (${r.cardinality_display})`)
       .join("; ");
   }
   if (failCount > 0) {
@@ -1001,5 +1197,14 @@ function executeCreateRelationships(args, { tables, relationships, diagram }) {
       .join("; ");
   }
 
-  return { success: successCount > 0 || failCount === 0, message, results };
+  const summary = buildToolResultSummary(
+    "create_relationships",
+    successCount,
+    failCount,
+    results,
+    [],
+    affectedRelationships
+  );
+  summary.message = message;
+  return summary;
 }
