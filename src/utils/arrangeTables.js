@@ -4,6 +4,7 @@ import {
   tableHeaderHeight,
   tableWidth,
   ObjectType,
+  Action,
 } from "../data/constants";
 
 const GAP_X = 60;
@@ -120,11 +121,36 @@ function getRecentlyAffectedTables(tables, recentTableIds, recentRelationships, 
   return tables.filter((t) => affectedIds.has(t.id));
 }
 
-function arrangeByRelationships(tables, relationships, width = tableWidth) {
+function getBoundingBox(tables, width = tableWidth) {
+  if (tables.length === 0) {
+    return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  }
+  
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  
+  tables.forEach((table) => {
+    const rect = getTableBounds(table, width);
+    minX = Math.min(minX, rect.x);
+    minY = Math.min(minY, rect.y);
+    maxX = Math.max(maxX, rect.x + rect.width);
+    maxY = Math.max(maxY, rect.y + rect.height);
+  });
+  
+  return { minX, minY, maxX, maxY };
+}
+
+function arrangeByRelationshipsCompact(tables, relationships, width = tableWidth) {
   if (tables.length === 0) return [];
   
   const graph = buildRelationshipGraph(tables, relationships);
   const moves = [];
+  
+  const bbox = getBoundingBox(tables, width);
+  const baseX = Math.max(0, bbox.minX);
+  const baseY = Math.max(0, bbox.minY);
   
   const sortedByDegree = Array.from(graph.values()).sort((a, b) => b.degree - a.degree);
   
@@ -132,39 +158,53 @@ function arrangeByRelationships(tables, relationships, width = tableWidth) {
   
   const visited = new Set();
   const layers = [];
-  let currentLayer = [sortedByDegree[0].table.id];
-  visited.add(sortedByDegree[0].table.id);
+  const isolated = [];
   
-  while (currentLayer.length > 0) {
-    layers.push(currentLayer);
-    const nextLayer = [];
+  for (const node of sortedByDegree) {
+    if (visited.has(node.table.id)) continue;
     
-    currentLayer.forEach((tableId) => {
-      const node = graph.get(tableId);
-      if (node) {
-        node.connections.forEach((neighborId) => {
-          if (!visited.has(neighborId)) {
-            visited.add(neighborId);
-            nextLayer.push(neighborId);
-          }
-        });
-      }
-    });
+    if (node.degree === 0) {
+      isolated.push(node.table.id);
+      visited.add(node.table.id);
+      continue;
+    }
     
-    currentLayer = nextLayer;
+    const componentLayers = [];
+    let currentLayer = [node.table.id];
+    visited.add(node.table.id);
+    
+    while (currentLayer.length > 0) {
+      componentLayers.push(currentLayer);
+      const nextLayer = [];
+      
+      currentLayer.forEach((tableId) => {
+        const currentNode = graph.get(tableId);
+        if (currentNode) {
+          currentNode.connections.forEach((neighborId) => {
+            if (!visited.has(neighborId)) {
+              visited.add(neighborId);
+              nextLayer.push(neighborId);
+            }
+          });
+        }
+      });
+      
+      currentLayer = nextLayer;
+    }
+    
+    layers.push(...componentLayers);
   }
   
-  const isolated = tables.filter((t) => !visited.has(t.id));
   if (isolated.length > 0) {
-    layers.push(isolated.map((t) => t.id));
+    layers.push(isolated);
   }
-  
-  let currentY = Math.min(...tables.map((t) => t.y));
   
   const tableMap = new Map(tables.map((t) => [t.id, t]));
   
+  let currentY = baseY;
+  
   layers.forEach((layer) => {
-    let currentX = Math.min(...tables.map((t) => t.x));
+    let currentX = baseX;
     let maxHeightInRow = 0;
     
     layer.forEach((tableId) => {
@@ -196,9 +236,9 @@ function arrangeByRelationships(tables, relationships, width = tableWidth) {
   return moves;
 }
 
-function resolveOverlaps(tables, allTables, width = tableWidth) {
+function resolveOverlapsLocally(tables, allTables, width = tableWidth) {
   const moves = [];
-  const maxIterations = 50;
+  const maxIterations = 30;
   
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     let hasOverlap = false;
@@ -219,19 +259,22 @@ function resolveOverlaps(tables, allTables, width = tableWidth) {
           let newX = tables[i].x;
           let newY = tables[i].y;
           
-          if (Math.abs(dx) > Math.abs(dy)) {
+          if (Math.abs(dx) >= Math.abs(dy)) {
             if (dx > 0) {
               newX = rect2.x + rect2.width + GAP_X;
             } else {
-              newX = rect2.x - rect1.width - GAP_X;
+              newX = Math.max(0, rect2.x - rect1.width - GAP_X);
             }
           } else {
             if (dy > 0) {
               newY = rect2.y + rect2.height + GAP_Y;
             } else {
-              newY = rect2.y - rect1.height - GAP_Y;
+              newY = Math.max(0, rect2.y - rect1.height - GAP_Y);
             }
           }
+          
+          newX = Math.max(0, newX);
+          newY = Math.max(0, newY);
           
           const existingMove = moves.find((m) => m.tableId === tables[i].id);
           if (existingMove) {
@@ -346,10 +389,10 @@ export function arrangeTablesSmart({
   
   const allMoves = [];
   
-  const relationshipMoves = arrangeByRelationships(uniqueTables, relationships, width);
+  const relationshipMoves = arrangeByRelationshipsCompact(uniqueTables, relationships, width);
   allMoves.push(...relationshipMoves);
   
-  const overlapMoves = resolveOverlaps(uniqueTables, allTables, width);
+  const overlapMoves = resolveOverlapsLocally(uniqueTables, allTables, width);
   
   overlapMoves.forEach((newMove) => {
     const existing = allMoves.find((m) => m.tableId === newMove.tableId);
@@ -391,7 +434,7 @@ export function buildUndoRedoForArrange(moves) {
   if (moves.length === 1) {
     const move = moves[0];
     return {
-      action: "MOVE",
+      action: Action.MOVE,
       element: ObjectType.TABLE,
       id: move.tableId,
       x: move.oldX,
@@ -402,7 +445,7 @@ export function buildUndoRedoForArrange(moves) {
   
   return {
     bulk: true,
-    action: "MOVE",
+    action: Action.MOVE,
     message: `[AI] Arrange ${moves.length} table(s)`,
     elements: moves.map((move) => ({
       id: move.tableId,
@@ -411,4 +454,13 @@ export function buildUndoRedoForArrange(moves) {
       redo: { x: move.newX, y: move.newY },
     })),
   };
+}
+
+export function formatTableNamesForDisplay(tableNames, maxShow = 3) {
+  if (tableNames.length <= maxShow) {
+    return tableNames.join(", ");
+  }
+  const shown = tableNames.slice(0, maxShow);
+  const remaining = tableNames.length - maxShow;
+  return `${shown.join(", ")} 等${remaining}张`;
 }
