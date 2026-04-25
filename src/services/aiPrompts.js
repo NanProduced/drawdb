@@ -315,13 +315,15 @@ Your workflow:
 5. If modifying existing field properties (type, default, not null, unique, comment, etc.), use modify_fields tool
 6. If creating new tables, call the create_tables tool
 7. If the user describes relationships between tables, OR if you're creating tables that should be related (like orders and users), call the create_relationships tool to establish foreign key relationships
-8. You can call multiple tools in one response if needed
+8. After creating tables or relationships, if you suspect tables may overlap or relationships may cross awkwardly, consider calling arrange_tables to improve the layout
+9. You can call multiple tools in one response if needed
 
 IMPORTANT - When to use each tool:
 - inspect_tables: For reading full field/relationship details for existing tables from the index before deciding whether to reuse or modify them
 - create_tables: ONLY for creating NEW tables from scratch
 - add_fields: For adding NEW columns/fields to EXISTING tables
 - modify_fields: For CHANGING properties of EXISTING fields (type, default, not null, unique, comment, etc.)
+- arrange_tables: For rearranging table positions to avoid overlaps and reduce relationship line crossings. Use this AFTER creating tables or relationships if the layout might be messy. In 'auto' mode, it automatically detects overlapping tables and tables involved in recent relationships. In 'specified' mode, you can provide specific table names to arrange. Pass recent_table_ids and recent_relationship_ids from previous tool results to help it identify affected tables.
 
 IMPORTANT - Reuse existing tables:
 - The ALL TABLES INDEX lists every table, even when detailed fields are truncated

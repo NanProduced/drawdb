@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import { Cardinality, Constraint, Action, ObjectType } from "../data/constants";
+import { arrangeTablesSmart, buildUndoRedoForArrange } from "../utils/arrangeTables";
 
 function findTableIgnoreCase(tables, tableName) {
   const lowerName = tableName.toLowerCase();
@@ -993,6 +994,143 @@ function executeModifyFields(args, { tables, relationships, diagram, setUndoStac
   return summary;
 }
 
+function executeArrangeTables(args, { tables, relationships, diagram, setUndoStack, setRedoStack }) {
+  const {
+    tables: targetTableNames = null,
+    mode = "auto",
+    scope = "local",
+    recent_table_ids = [],
+    recent_relationship_ids = [],
+  } = args;
+
+  const results = [];
+  let targetTableIds = null;
+
+  if (mode === "specified" && targetTableNames && Array.isArray(targetTableNames)) {
+    targetTableIds = [];
+    for (const tableName of targetTableNames) {
+      const table = findTableIgnoreCase(tables, tableName);
+      if (table) {
+        targetTableIds.push(table.id);
+        results.push({
+          success: true,
+          table_name: table.name,
+          table_id: table.id,
+          action: "included",
+        });
+      } else {
+        results.push({
+          success: false,
+          error: `Table "${tableName}" not found`,
+          requested_table: tableName,
+        });
+      }
+    }
+  }
+
+  const recentRelationships = [];
+  if (recent_relationship_ids && Array.isArray(recent_relationship_ids)) {
+    for (const relId of recent_relationship_ids) {
+      const rel = relationships.find((r) => r.id === relId);
+      if (rel) {
+        recentRelationships.push(rel);
+      }
+    }
+  }
+
+  const validRecentTableIds = [];
+  if (recent_table_ids && Array.isArray(recent_table_ids)) {
+    for (const tableId of recent_table_ids) {
+      const table = tables.find((t) => t.id === tableId);
+      if (table) {
+        validRecentTableIds.push(tableId);
+      }
+    }
+  }
+
+  const allTablesClone = tables.map((t) => ({ ...t }));
+
+  const arrangeResult = arrangeTablesSmart({
+    tables,
+    allTables: allTablesClone,
+    relationships,
+    targetTableIds,
+    recentTableIds: validRecentTableIds,
+    recentRelationships,
+    mode,
+    scope,
+  });
+
+  const { moves, tablesToArrange } = arrangeResult;
+
+  if (moves.length > 0) {
+    moves.forEach((move) => {
+      const table = tables.find((t) => t.id === move.tableId);
+      if (table) {
+        table.x = move.newX;
+        table.y = move.newY;
+        diagram.updateTable(move.tableId, { x: move.newX, y: move.newY });
+
+        results.push({
+          success: true,
+          table_name: move.tableName,
+          table_id: move.tableId,
+          action: "moved",
+          old_x: move.oldX,
+          old_y: move.oldY,
+          new_x: move.newX,
+          new_y: move.newY,
+          display_text: `${move.tableName} (${Math.round(move.oldX)},${Math.round(move.oldY)}) → (${Math.round(move.newX)},${Math.round(move.newY)})`,
+        });
+      }
+    });
+
+    if (setUndoStack && setRedoStack) {
+      const undoRedoEntry = buildUndoRedoForArrange(moves);
+      if (undoRedoEntry) {
+        setUndoStack((prev) => [...prev, undoRedoEntry]);
+        setRedoStack([]);
+      }
+    }
+  }
+
+  const successCount = results.filter((r) => r.success).length;
+  const failCount = results.filter((r) => !r.success).length;
+
+  const affectedTables = moves.map((move) => {
+    const table = tables.find((t) => t.id === move.tableId);
+    return {
+      name: move.tableName,
+      id: move.tableId,
+      field_count: table?.fields.length || 0,
+      old_x: move.oldX,
+      old_y: move.oldY,
+      new_x: move.newX,
+      new_y: move.newY,
+    };
+  });
+
+  let message = "";
+  if (moves.length > 0) {
+    message = `Arranged ${moves.length} table(s): ${moves.map((m) => m.tableName).join(", ")}`;
+  } else if (tablesToArrange.length > 0) {
+    message = `No table movements needed. ${tablesToArrange.length} table(s) checked but already well positioned.`;
+  } else {
+    message = "No tables were selected for arrangement.";
+  }
+
+  const summary = buildToolResultSummary(
+    "arrange_tables",
+    successCount,
+    failCount,
+    results,
+    affectedTables,
+    []
+  );
+  summary.message = message;
+  return summary;
+}
+
 const toolRegistry = {
   inspect_tables: {
     schema: {
@@ -1369,6 +1507,66 @@ const toolRegistry = {
         const tableName = item.table_actual_name || item.table || item.table_name || item.tableName;
         const fieldName = item.field_actual_name || item.field;
         return `${tableName}.${fieldName}`;
+      },
+      category: "write",
+    },
+  },
+
+  arrange_tables: {
+    schema: {
+      name: "arrange_tables",
+      description:
+        "Arrange table positions on the canvas to avoid overlaps, reduce line crossings, and place related tables closer together. Use this after creating tables or relationships if the layout looks messy. Only rearranges affected tables locally when possible, avoiding full diagram rearrangement unless necessary.",
+      parameters: {
+        type: "object",
+        properties: {
+          tables: {
+            type: "array",
+            description: "Specific table names to arrange. If provided, mode should be 'specified'. Table name matching is case-insensitive.",
+            items: {
+              type: "string",
+            },
+          },
+          mode: {
+            type: "string",
+            description: "Arrange mode: 'auto' (auto-detect affected tables) or 'specified' (arrange specific tables). Default is 'auto'.",
+            enum: ["auto", "specified"],
+            default: "auto",
+          },
+          scope: {
+            type: "string",
+            description: "Arrange scope: 'local' (only rearrange related tables) or 'full' (rearrange all tables). Default is 'local'.",
+            enum: ["local", "full"],
+            default: "local",
+          },
+          recent_table_ids: {
+            type: "array",
+            description: "IDs of recently created or modified tables. Used in 'auto' mode to detect which tables need arrangement.",
+            items: {
+              type: "string",
+            },
+          },
+          recent_relationship_ids: {
+            type: "array",
+            description: "IDs of recently created relationships. Used in 'auto' mode to detect which tables need arrangement.",
+            items: {
+              type: "string",
+            },
+          },
+        },
+      },
+    },
+    executor: executeArrangeTables,
+    uiConfig: {
+      getToolLabel: (result, t) => {
+        const movedCount = result.details?.filter((r) => r.success && r.action === "moved").length || 0;
+        if (movedCount > 0) {
+          return `Arranged ${movedCount} table(s)`;
+        }
+        return t ? t("ai_tool_executed") : "Tool executed";
+      },
+      getDisplayText: (item) => {
+        return item.display_text || item.table_name || item.table || "table";
       },
       category: "write",
     },
