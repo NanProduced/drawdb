@@ -3,8 +3,14 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "workspaces": [
+    "server"
+  ],
   "scripts": {
     "dev": "vite",
+    "dev:client": "vite",
+    "dev:server": "npm --prefix server run dev",
+    "dev:all": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
@@ -58,6 +64,7 @@
     "postcss": "^8.4.32",
     "prettier": "3.2.5",
     "tailwindcss": "^4.0.14",
+    "concurrently": "^9.2.1",
     "vite": "^6.4.2"
   }
 }

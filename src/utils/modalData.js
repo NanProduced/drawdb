@@ -51,8 +51,6 @@ export const getOkText = (modal) => {
     case MODAL.IMPORT:
     case MODAL.IMPORT_SRC:
       return i18n.t("import");
-    case MODAL.IMPORT_POSTGRES:
-      return "Fetch Schema";
     case MODAL.CODE:
     case MODAL.IMG:
       return i18n.t("export");

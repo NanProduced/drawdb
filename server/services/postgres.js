@@ -138,7 +138,8 @@ export async function getDatabaseStructure(connectionParams) {
       foreignKeys,
       uniqueConstraints,
       tableComments,
-      columnComments
+      columnComments,
+      schema
     );
 
     return {
@@ -325,7 +326,8 @@ function buildStructure(
   foreignKeys,
   uniqueConstraints,
   tableComments,
-  columnComments
+  columnComments,
+  schema
 ) {
   const tableMap = new Map();
 
@@ -431,7 +433,7 @@ function buildStructure(
 
   return {
     tables: Array.from(tableMap.values()),
-    schema: tables[0]?.table_schema || "public",
+    schema,
   };
 }
 
