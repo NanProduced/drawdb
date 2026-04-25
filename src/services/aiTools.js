@@ -146,6 +146,24 @@ function checkModifyFieldConstraints(table, field, updates, relationships, allTa
 
 export const toolDefinitions = [
   {
+    name: "inspect_tables",
+    description:
+      "Inspect existing tables by name before deciding whether to reuse or modify them. Use this when the full table index suggests a table may be relevant but its fields are not shown in the current prompt.",
+    parameters: {
+      type: "object",
+      properties: {
+        tables: {
+          type: "array",
+          description: "Table names to inspect. Matching is case-insensitive.",
+          items: {
+            type: "string",
+          },
+        },
+      },
+      required: ["tables"],
+    },
+  },
+  {
     name: "create_tables",
     description:
       "Create one or more database tables with their fields. Use this when the user wants to design new tables based on their requirements.",
@@ -450,6 +468,8 @@ export function executeTool(
   };
 
   switch (toolName) {
+    case "inspect_tables":
+      return executeInspectTables(parsedArgs, { tables, relationships });
     case "create_tables":
       return executeCreateTables(parsedArgs, { tables, diagram });
     case "create_relationships":
@@ -461,6 +481,109 @@ export function executeTool(
     default:
       return { success: false, error: `Unknown tool: ${toolName}` };
   }
+}
+
+function executeInspectTables(args, { tables, relationships }) {
+  const requestedTables = args.tables || [];
+  const results = [];
+  const inspectedTableIds = new Set();
+
+  for (const tableName of requestedTables) {
+    const table = findTableIgnoreCase(tables, tableName);
+    if (!table) {
+      results.push({
+        success: false,
+        error: `Table "${tableName}" not found`,
+        requested_table: tableName,
+      });
+      continue;
+    }
+
+    inspectedTableIds.add(table.id);
+    const tableRelationships = relationships
+      .filter((rel) => rel.startTableId === table.id || rel.endTableId === table.id)
+      .map((rel) => {
+        const info = getRelationshipInfo(relationships, tables, rel);
+        return {
+          id: rel.id,
+          name: rel.name,
+          from_table: info.fromTable,
+          from_field: info.fromField,
+          to_table: info.toTable,
+          to_field: info.toField,
+          cardinality: rel.cardinality,
+          cardinality_display: cardinalityDisplayNames[rel.cardinality] || rel.cardinality,
+        };
+      });
+
+    results.push({
+      success: true,
+      tableName: table.name,
+      table_name: table.name,
+      table_id: table.id,
+      fieldCount: table.fields.length,
+      field_count: table.fields.length,
+      comment: table.comment || "",
+      fields: table.fields.map(formatFieldForSummary),
+      relationships: tableRelationships,
+    });
+  }
+
+  const successCount = results.filter((r) => r.success).length;
+  const failCount = results.filter((r) => !r.success).length;
+  const affectedTables = Array.from(inspectedTableIds).map((tableId) => {
+    const table = tables.find((t) => t.id === tableId);
+    return {
+      name: table?.name,
+      id: tableId,
+      field_count: table?.fields.length,
+      fields: table?.fields.map(formatFieldForSummary) || [],
+    };
+  });
+
+  const affectedRelationships = relationships
+    .filter(
+      (rel) =>
+        inspectedTableIds.has(rel.startTableId) ||
+        inspectedTableIds.has(rel.endTableId),
+    )
+    .map((rel) => {
+      const info = getRelationshipInfo(relationships, tables, rel);
+      return {
+        id: rel.id,
+        name: rel.name,
+        from_table: info.fromTable,
+        from_field: info.fromField,
+        to_table: info.toTable,
+        to_field: info.toField,
+        cardinality: rel.cardinality,
+        cardinality_display: cardinalityDisplayNames[rel.cardinality] || rel.cardinality,
+      };
+    });
+
+  const summary = buildToolResultSummary(
+    "inspect_tables",
+    successCount,
+    failCount,
+    results,
+    affectedTables,
+    affectedRelationships,
+  );
+
+  if (successCount > 0) {
+    summary.message = `Inspected ${successCount} table(s): ${results
+      .filter((r) => r.success)
+      .map((r) => r.table_name)
+      .join(", ")}`;
+  }
+  if (failCount > 0) {
+    summary.message += `${summary.message ? " " : ""}${failCount} table(s) not found: ${results
+      .filter((r) => !r.success)
+      .map((r) => r.requested_table)
+      .join(", ")}`;
+  }
+
+  return summary;
 }
 
 function executeAddFields(args, { tables, diagram, setUndoStack, setRedoStack }) {

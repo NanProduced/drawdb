@@ -116,6 +116,9 @@ export default function ChatMessage({ message }) {
       if (toolName === "create_tables") {
         return r.tableName || r.table_name || "table";
       }
+      if (toolName === "inspect_tables") {
+        return r.tableName || r.table_name || "table";
+      }
       if (toolName === "add_fields") {
         const tableName = r.table_actual_name || r.table || r.table_name || r.tableName;
         const fieldName = r.field_name || r.field;
@@ -139,6 +142,8 @@ export default function ChatMessage({ message }) {
       switch (toolName) {
         case "create_tables":
           return hasSuccess ? t("ai_tables_created", { count: successCount }) : t("ai_tool_executed");
+        case "inspect_tables":
+          return hasSuccess ? `Inspected ${successCount} table(s)` : t("ai_tool_executed");
         case "create_relationships":
           return hasSuccess ? `Created ${successCount} relationship(s)` : t("ai_tool_executed");
         case "add_fields":
@@ -152,6 +157,7 @@ export default function ChatMessage({ message }) {
 
     const isSuccessTool = hasSuccess && (
       toolName === "create_tables" ||
+      toolName === "inspect_tables" ||
       toolName === "create_relationships" ||
       toolName === "add_fields" ||
       toolName === "modify_fields"

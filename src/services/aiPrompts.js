@@ -310,16 +310,24 @@ IMPORTANT - How to read the snapshot:
 Your workflow:
 1. Analyze the user's requirements description
 2. Determine if this is about modifying existing tables or creating new ones
-3. If adding new fields to existing tables, use add_fields tool
-4. If modifying existing field properties (type, default, not null, unique, comment, etc.), use modify_fields tool
-5. If creating new tables, call the create_tables tool
-6. If the user describes relationships between tables, OR if you're creating tables that should be related (like orders and users), call the create_relationships tool to establish foreign key relationships
-7. You can call multiple tools in one response if needed
+3. If the ALL TABLES INDEX contains tables that may be relevant but their details are not shown, call inspect_tables first
+4. If adding new fields to existing tables, use add_fields tool
+5. If modifying existing field properties (type, default, not null, unique, comment, etc.), use modify_fields tool
+6. If creating new tables, call the create_tables tool
+7. If the user describes relationships between tables, OR if you're creating tables that should be related (like orders and users), call the create_relationships tool to establish foreign key relationships
+8. You can call multiple tools in one response if needed
 
 IMPORTANT - When to use each tool:
+- inspect_tables: For reading full field/relationship details for existing tables from the index before deciding whether to reuse or modify them
 - create_tables: ONLY for creating NEW tables from scratch
 - add_fields: For adding NEW columns/fields to EXISTING tables
 - modify_fields: For CHANGING properties of EXISTING fields (type, default, not null, unique, comment, etc.)
+
+IMPORTANT - Reuse existing tables:
+- The ALL TABLES INDEX lists every table, even when detailed fields are truncated
+- If a table name looks related to the user's requirement, inspect it before creating a similar new table
+- Do not create duplicate tables just because their field details are not currently expanded
+- After inspect_tables returns details, use those results and the next prompt snapshot to decide whether to add fields, modify fields, create relationships, or create missing tables
 
 WARNING about modify_fields:
 - Renaming a field (changing name property) will FAIL if the field is involved in any relationship (foreign key)
