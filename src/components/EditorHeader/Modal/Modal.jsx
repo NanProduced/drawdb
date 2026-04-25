@@ -36,6 +36,7 @@ import Share from "./Share";
 import AISettings from "./AISettings";
 import { useNavigate } from "react-router-dom";
 import { mergeCustomTypes } from "../../../utils/customTypes";
+import { convertPostgresStructureToDiagram } from "../../../api/postgres";
 
 const extensionToLanguage = {
   md: "markdown",
@@ -80,6 +81,8 @@ export default function Modal({
   const [selectedTemplateId, setSelectedTemplateId] = useState(-1);
   const [selectedDiagramId, setSelectedDiagramId] = useState(0);
   const [saveAsTitle, setSaveAsTitle] = useState(title);
+  const [fetchedSchema, setFetchedSchema] = useState(null);
+  const [overwritePostgres, setOverwritePostgres] = useState(false);
   const navigate = useNavigate();
 
   const overwriteDiagram = () => {
@@ -196,7 +199,44 @@ export default function Modal({
         parseSQLAndLoadDiagram();
         return;
       case MODAL.IMPORT_POSTGRES:
-        setModal(MODAL.NONE);
+        if (fetchedSchema) {
+          try {
+            const diagramData = convertPostgresStructureToDiagram(fetchedSchema, database);
+            
+            if (overwritePostgres) {
+              setTables(diagramData.tables);
+              setRelationships(diagramData.relationships);
+              if (databases[database].hasTypes) setTypes(diagramData.types ?? []);
+              if (databases[database].hasEnums) setEnums(diagramData.enums ?? []);
+              setTransform((prev) => ({ ...prev, pan: { x: 0, y: 0 } }));
+              setNotes([]);
+              setAreas([]);
+            } else {
+              setTables((prev) => [...prev, ...diagramData.tables]);
+              setRelationships((prev) =>
+                [...prev, ...diagramData.relationships].map((r, i) => ({
+                  ...r,
+                  id: i,
+                })),
+              );
+              if (databases[database].hasTypes && diagramData.types.length)
+                setTypes((prev) => [...prev, ...diagramData.types]);
+              if (databases[database].hasEnums && diagramData.enums.length)
+                setEnums((prev) => [...prev, ...diagramData.enums]);
+            }
+
+            setUndoStack([]);
+            setRedoStack([]);
+            setFetchedSchema(null);
+            setOverwritePostgres(false);
+            setModal(MODAL.NONE);
+          } catch (e) {
+            setError({
+              type: STATUS.ERROR,
+              message: `Failed to import PostgreSQL schema: ${e.message}`,
+            });
+          }
+        }
         return;
       case MODAL.OPEN:
         if (!selectedDiagramId) return;
@@ -250,7 +290,13 @@ export default function Modal({
           />
         );
       case MODAL.IMPORT_POSTGRES:
-        return <ImportPostgres />;
+        return (
+          <ImportPostgres
+            setFetchedSchema={setFetchedSchema}
+            setOverwrite={setOverwritePostgres}
+            overwrite={overwritePostgres}
+          />
+        );
       case MODAL.NEW:
         return (
           <New
@@ -355,6 +401,8 @@ export default function Modal({
           src: "",
           overwrite: false,
         });
+        setFetchedSchema(null);
+        setOverwritePostgres(false);
       }}
       onCancel={() => {
         if (modal === MODAL.RENAME) setUncontrolledTitle(title);
@@ -373,8 +421,9 @@ export default function Modal({
           (modal === MODAL.RENAME && title === "") ||
           ((modal === MODAL.IMG || modal === MODAL.CODE) && !exportData.data) ||
           (modal === MODAL.SAVEAS && saveAsTitle === "") ||
-          (modal === MODAL.IMPORT_SRC && importSource.src === ""),
-        hidden: modal === MODAL.SHARE || modal === MODAL.IMPORT_POSTGRES,
+          (modal === MODAL.IMPORT_SRC && importSource.src === "") ||
+          (modal === MODAL.IMPORT_POSTGRES && !fetchedSchema),
+        hidden: modal === MODAL.SHARE,
       }}
       hasCancel={modal !== MODAL.SHARE}
       cancelText={modal === MODAL.IMPORT_POSTGRES ? t("close") : t("cancel")}

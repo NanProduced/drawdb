@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Button,
   Input,
@@ -7,6 +7,7 @@ import {
   Tabs,
   TabPane,
   Table,
+  Checkbox,
 } from "@douyinfe/semi-ui";
 import { STATUS } from "../../../data/constants";
 import {
@@ -15,20 +16,57 @@ import {
   PostgresConnectionError,
 } from "../../../api/postgres";
 
-const defaultConnection = {
-  host: "localhost",
-  port: "5432",
-  database: "",
-  schema: "public",
-  user: "",
-  password: "",
-};
+const STORAGE_KEY = "drawdb_postgres_connection";
+
+function loadSavedConnection() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        host: parsed.host || "localhost",
+        port: parsed.port || "5432",
+        database: parsed.database || "",
+        schema: parsed.schema || "public",
+        user: parsed.user || "",
+        password: "",
+      };
+    }
+  } catch (e) {
+    // Ignore parsing errors
+  }
+  return {
+    host: "localhost",
+    port: "5432",
+    database: "",
+    schema: "public",
+    user: "",
+    password: "",
+  };
+}
+
+function saveConnection(connection) {
+  try {
+    const toSave = {
+      host: connection.host,
+      port: connection.port,
+      database: connection.database,
+      schema: connection.schema,
+      user: connection.user,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+  } catch (e) {
+    // Ignore storage errors
+  }
+}
 
 export default function ImportPostgres({
   setConnectionParams,
   setFetchedSchema,
+  setOverwrite,
+  overwrite,
 }) {
-  const [connection, setConnection] = useState(defaultConnection);
+  const [connection, setConnection] = useState(loadSavedConnection);
   const [status, setStatus] = useState({
     type: STATUS.NONE,
     message: "",
@@ -97,6 +135,7 @@ export default function ImportPostgres({
 
       if (result.success && result.data) {
         setSchemaData(result.data);
+        saveConnection(connection);
         if (setConnectionParams) {
           setConnectionParams(connection);
         }
@@ -105,7 +144,7 @@ export default function ImportPostgres({
         }
         setStatus({
           type: STATUS.OK,
-          message: `Successfully fetched ${result.data.tables?.length || 0} tables`,
+          message: `Successfully fetched ${result.data.tables?.length || 0} tables. Ready to import.`,
         });
       } else {
         throw new Error("Invalid response from server");
@@ -347,6 +386,18 @@ export default function ImportPostgres({
           </Button>
         </Space>
       </div>
+
+      {schemaData && setOverwrite && (
+        <div className="mt-2">
+          <Checkbox
+            aria-label="overwrite checkbox"
+            checked={overwrite}
+            onChange={(e) => setOverwrite(e.target.checked)}
+          >
+            Overwrite existing diagram
+          </Checkbox>
+        </div>
+      )}
 
       {status.type !== STATUS.NONE && (
         <Banner
