@@ -314,3 +314,92 @@ export function formatPostgresTypeToDiagram(dataType, udtName, diagramDb) {
 
   return dataType || udtName || "BLOB";
 }
+
+export function findConflictingTables(incomingTables, existingTables) {
+  const incomingTableNames = new Set(incomingTables.map(t => t.name));
+  const existingTableNames = new Set(existingTables.map(t => t.name));
+  
+  const conflictingNames = [];
+  for (const name of incomingTableNames) {
+    if (existingTableNames.has(name)) {
+      conflictingNames.push(name);
+    }
+  }
+  
+  return conflictingNames;
+}
+
+export function reassignIds(diagramData, existingTables, existingRelationships) {
+  const { tables, relationships } = diagramData;
+  
+  const existingTableIds = new Set(existingTables.map(t => t.id));
+  const existingFieldIds = new Set();
+  const existingRelIds = new Set(existingRelationships.map(r => r.id));
+  
+  existingTables.forEach(t => {
+    t.fields.forEach(f => existingFieldIds.add(f.id));
+  });
+  
+  let tableIdCounter = 0;
+  let fieldIdCounter = 0;
+  let relIdCounter = 0;
+  
+  const tableIdMap = new Map();
+  const fieldIdMap = new Map();
+  
+  const newTables = tables.map(table => {
+    let newTableId = table.id;
+    while (existingTableIds.has(newTableId)) {
+      newTableId = `pg_${Date.now()}_t_${tableIdCounter++}`;
+    }
+    
+    tableIdMap.set(table.id, newTableId);
+    
+    const newFields = table.fields.map(field => {
+      let newFieldId = field.id;
+      while (existingFieldIds.has(newFieldId)) {
+        newFieldId = `pg_${Date.now()}_f_${fieldIdCounter++}`;
+      }
+      
+      fieldIdMap.set(field.id, newFieldId);
+      
+      return {
+        ...field,
+        id: newFieldId,
+      };
+    });
+    
+    return {
+      ...table,
+      id: newTableId,
+      fields: newFields,
+    };
+  });
+  
+  const newRelationships = relationships.map(rel => {
+    let newRelId = rel.id;
+    while (existingRelIds.has(newRelId)) {
+      newRelId = `pg_${Date.now()}_r_${relIdCounter++}`;
+    }
+    
+    const newStartTableId = tableIdMap.get(rel.startTableId) || rel.startTableId;
+    const newStartFieldId = fieldIdMap.get(rel.startFieldId) || rel.startFieldId;
+    const newEndTableId = tableIdMap.get(rel.endTableId) || rel.endTableId;
+    const newEndFieldId = fieldIdMap.get(rel.endFieldId) || rel.endFieldId;
+    
+    return {
+      ...rel,
+      id: newRelId,
+      startTableId: newStartTableId,
+      startFieldId: newStartFieldId,
+      endTableId: newEndTableId,
+      endFieldId: newEndFieldId,
+    };
+  });
+  
+  return {
+    ...diagramData,
+    tables: newTables,
+    relationships: newRelationships,
+  };
+}

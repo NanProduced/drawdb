@@ -8,7 +8,7 @@ export const getModalTitle = (modal) => {
     case MODAL.IMPORT_SRC:
       return i18n.t("import_from_source");
     case MODAL.IMPORT_POSTGRES:
-      return "Connect to PostgreSQL";
+      return i18n.t("import_from_postgres");
     case MODAL.CODE:
       return i18n.t("export");
     case MODAL.IMG:
@@ -50,6 +50,7 @@ export const getOkText = (modal) => {
   switch (modal) {
     case MODAL.IMPORT:
     case MODAL.IMPORT_SRC:
+    case MODAL.IMPORT_POSTGRES:
       return i18n.t("import");
     case MODAL.CODE:
     case MODAL.IMG:

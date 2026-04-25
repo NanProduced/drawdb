@@ -36,7 +36,11 @@ import Share from "./Share";
 import AISettings from "./AISettings";
 import { useNavigate } from "react-router-dom";
 import { mergeCustomTypes } from "../../../utils/customTypes";
-import { convertPostgresStructureToDiagram } from "../../../api/postgres";
+import {
+  convertPostgresStructureToDiagram,
+  findConflictingTables,
+  reassignIds,
+} from "../../../api/postgres";
 
 const extensionToLanguage = {
   md: "markdown",
@@ -56,7 +60,7 @@ export default function Modal({
   importFrom,
 }) {
   const { t, i18n } = useTranslation();
-  const { setTables, setRelationships, database } = useDiagram();
+  const { tables, setTables, relationships, setRelationships, database } = useDiagram();
   const { setNotes } = useNotes();
   const { setAreas } = useAreas();
   const { setTypes } = useTypes();
@@ -212,17 +216,24 @@ export default function Modal({
               setNotes([]);
               setAreas([]);
             } else {
-              setTables((prev) => [...prev, ...diagramData.tables]);
+              const conflictingTables = findConflictingTables(diagramData.tables, tables);
+              
+              let finalData = diagramData;
+              if (conflictingTables.length > 0) {
+                finalData = reassignIds(diagramData, tables, relationships);
+              }
+              
+              setTables((prev) => [...prev, ...finalData.tables]);
               setRelationships((prev) =>
-                [...prev, ...diagramData.relationships].map((r, i) => ({
+                [...prev, ...finalData.relationships].map((r, i) => ({
                   ...r,
                   id: i,
                 })),
               );
-              if (databases[database].hasTypes && diagramData.types.length)
-                setTypes((prev) => [...prev, ...diagramData.types]);
-              if (databases[database].hasEnums && diagramData.enums.length)
-                setEnums((prev) => [...prev, ...diagramData.enums]);
+              if (databases[database].hasTypes && finalData.types.length)
+                setTypes((prev) => [...prev, ...finalData.types]);
+              if (databases[database].hasEnums && finalData.enums.length)
+                setEnums((prev) => [...prev, ...finalData.enums]);
             }
 
             setUndoStack([]);
