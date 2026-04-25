@@ -79,12 +79,11 @@ function formatPostgresError(err) {
 
 export async function testConnection(connectionParams) {
   let pool = null;
+  let client = null;
   try {
     pool = createPool(connectionParams);
-    const client = await pool.connect();
+    client = await pool.connect();
     await client.query("SELECT 1");
-    client.release();
-    await pool.end();
     return {
       success: true,
       message: "Connection successful",
@@ -96,6 +95,15 @@ export async function testConnection(connectionParams) {
       },
     };
   } catch (err) {
+    throw formatPostgresError(err);
+  } finally {
+    if (client) {
+      try {
+        client.release();
+      } catch (e) {
+        // Ignore release errors
+      }
+    }
     if (pool) {
       try {
         await pool.end();
@@ -103,15 +111,15 @@ export async function testConnection(connectionParams) {
         // Ignore pool end errors
       }
     }
-    throw formatPostgresError(err);
   }
 }
 
 export async function getDatabaseStructure(connectionParams) {
   let pool = null;
+  let client = null;
   try {
     pool = createPool(connectionParams);
-    const client = await pool.connect();
+    client = await pool.connect();
 
     const schema = connectionParams.schema || "public";
 
@@ -122,9 +130,6 @@ export async function getDatabaseStructure(connectionParams) {
     const uniqueConstraints = await getUniqueConstraints(client, schema);
     const tableComments = await getTableComments(client, schema);
     const columnComments = await getColumnComments(client, schema);
-
-    client.release();
-    await pool.end();
 
     const structure = buildStructure(
       tables,
@@ -141,6 +146,15 @@ export async function getDatabaseStructure(connectionParams) {
       data: structure,
     };
   } catch (err) {
+    throw formatPostgresError(err);
+  } finally {
+    if (client) {
+      try {
+        client.release();
+      } catch (e) {
+        // Ignore release errors
+      }
+    }
     if (pool) {
       try {
         await pool.end();
@@ -148,7 +162,6 @@ export async function getDatabaseStructure(connectionParams) {
         // Ignore pool end errors
       }
     }
-    throw formatPostgresError(err);
   }
 }
 

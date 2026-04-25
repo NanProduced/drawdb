@@ -25,6 +25,7 @@ import {
 } from "../../../utils/modalData";
 import CodeEditor from "../../CodeEditor";
 import ImportDiagram from "./ImportDiagram";
+import ImportPostgres from "./ImportPostgres";
 import ImportSource from "./ImportSource";
 import Language from "./Language";
 import New from "./New";
@@ -194,6 +195,9 @@ export default function Modal({
       case MODAL.IMPORT_SRC:
         parseSQLAndLoadDiagram();
         return;
+      case MODAL.IMPORT_POSTGRES:
+        setModal(MODAL.NONE);
+        return;
       case MODAL.OPEN:
         if (!selectedDiagramId) return;
         navigate(`/editor/diagrams/${selectedDiagramId}`, "_blank");
@@ -245,6 +249,8 @@ export default function Modal({
             setError={setError}
           />
         );
+      case MODAL.IMPORT_POSTGRES:
+        return <ImportPostgres />;
       case MODAL.NEW:
         return (
           <New

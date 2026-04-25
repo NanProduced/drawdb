@@ -89,6 +89,7 @@ export const MODAL = {
   SHARE: 11,
   CONFIG_CUSTOM_TYPES: 12,
   AI_SETTINGS: 13,
+  IMPORT_POSTGRES: 14,
 };
 
 export const STATUS = {
