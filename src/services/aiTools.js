@@ -953,8 +953,10 @@ function executeCreateTables(args, { tables, diagram }) {
     const fieldSummaries = fields.map(formatFieldForSummary);
     results.push({
       success: true,
+      tableName: tableDef.name,
       table_name: tableDef.name,
       table_id: newTable.id,
+      fieldCount: fields.length,
       field_count: fields.length,
       auto_added_id: autoAddedId,
       fields: fieldSummaries,
