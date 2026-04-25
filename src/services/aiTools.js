@@ -144,345 +144,6 @@ function checkModifyFieldConstraints(table, field, updates, relationships, allTa
   return issues;
 }
 
-export const toolDefinitions = [
-  {
-    name: "inspect_tables",
-    description:
-      "Inspect existing tables by name before deciding whether to reuse or modify them. Use this when the full table index suggests a table may be relevant but its fields are not shown in the current prompt.",
-    parameters: {
-      type: "object",
-      properties: {
-        tables: {
-          type: "array",
-          description: "Table names to inspect. Matching is case-insensitive.",
-          items: {
-            type: "string",
-          },
-        },
-      },
-      required: ["tables"],
-    },
-  },
-  {
-    name: "create_tables",
-    description:
-      "Create one or more database tables with their fields. Use this when the user wants to design new tables based on their requirements.",
-    parameters: {
-      type: "object",
-      properties: {
-        tables: {
-          type: "array",
-          description: "Array of tables to create",
-          items: {
-            type: "object",
-            properties: {
-              name: {
-                type: "string",
-                description: "Table name (use snake_case, e.g. user_orders)",
-              },
-              comment: {
-                type: "string",
-                description: "Table comment/description",
-              },
-              fields: {
-                type: "array",
-                description: "Array of fields in the table",
-                items: {
-                  type: "object",
-                  properties: {
-                    name: {
-                      type: "string",
-                      description: "Field name (use snake_case)",
-                    },
-                    type: {
-                      type: "string",
-                      description:
-                        "SQL data type (e.g. INT, VARCHAR, TEXT, DATETIME, BOOLEAN)",
-                    },
-                    size: {
-                      type: "string",
-                      description:
-                        "Type size/precision (e.g. '255' for VARCHAR(255), '10,2' for DECIMAL(10,2))",
-                    },
-                    primary: {
-                      type: "boolean",
-                      description: "Whether this field is a primary key",
-                    },
-                    notNull: {
-                      type: "boolean",
-                      description: "Whether this field is NOT NULL",
-                    },
-                    unique: {
-                      type: "boolean",
-                      description: "Whether this field has a UNIQUE constraint",
-                    },
-                    increment: {
-                      type: "boolean",
-                      description: "Whether this field is AUTO_INCREMENT",
-                    },
-                    default: {
-                      type: "string",
-                      description: "Default value for this field",
-                    },
-                    comment: {
-                      type: "string",
-                      description: "Field comment/description",
-                    },
-                    unsigned: {
-                      type: "boolean",
-                      description: "Whether this numeric field is UNSIGNED",
-                    },
-                  },
-                  required: ["name", "type"],
-                },
-              },
-            },
-            required: ["name", "fields"],
-          },
-        },
-      },
-      required: ["tables"],
-    },
-  },
-  {
-    name: "create_relationships",
-    description:
-      "Create foreign key relationships between existing tables. Use this when the user describes relationships like '订单属于用户', '评论关联文章', '表A有一个表B', '表A属于表B' etc. Fields can be existing ones or just created by create_tables.",
-    parameters: {
-      type: "object",
-      properties: {
-        relationships: {
-          type: "array",
-          description: "Array of relationships to create",
-          items: {
-            type: "object",
-            properties: {
-              from_table: {
-                type: "string",
-                description: "The table containing the foreign key (e.g. 'orders' that has user_id)",
-              },
-              from_field: {
-                type: "string",
-                description: "The foreign key field name (e.g. 'user_id')",
-              },
-              to_table: {
-                type: "string",
-                description: "The target table being referenced (e.g. 'users')",
-              },
-              to_field: {
-                type: "string",
-                description: "The primary key field being referenced (usually 'id')",
-              },
-              cardinality: {
-                type: "string",
-                description: "Relationship cardinality: 'one_to_one', 'one_to_many', 'many_to_one'. Default is 'many_to_one' which is the most common (e.g. many orders belong to one user). from_table is the table with foreign key, to_table is the referenced table.",
-                enum: ["one_to_one", "one_to_many", "many_to_one"],
-              },
-              update_constraint: {
-                type: "string",
-                description: "ON UPDATE constraint action. Default is 'No action'.",
-                enum: ["No action", "Restrict", "Cascade", "Set null", "Set default"],
-              },
-              delete_constraint: {
-                type: "string",
-                description: "ON DELETE constraint action. Default is 'No action'.",
-                enum: ["No action", "Restrict", "Cascade", "Set null", "Set default"],
-              },
-            },
-            required: ["from_table", "from_field", "to_table", "to_field"],
-          },
-        },
-      },
-      required: ["relationships"],
-    },
-  },
-  {
-    name: "add_fields",
-    description:
-      "Add new fields to existing tables. Use this when the user wants to add columns to an already existing table. Table name and field name matching is case-insensitive.",
-    parameters: {
-      type: "object",
-      properties: {
-        additions: {
-          type: "array",
-          description: "Array of field additions to perform",
-          items: {
-            type: "object",
-            properties: {
-              table: {
-                type: "string",
-                description: "Table name to add field to (case-insensitive)",
-              },
-              field: {
-                type: "object",
-                description: "Field definition to add",
-                properties: {
-                  name: {
-                    type: "string",
-                    description: "Field name (use snake_case)",
-                  },
-                  type: {
-                    type: "string",
-                    description:
-                      "SQL data type (e.g. INT, VARCHAR, TEXT, DATETIME, BOOLEAN)",
-                  },
-                  size: {
-                    type: "string",
-                    description:
-                      "Type size/precision (e.g. '255' for VARCHAR(255), '10,2' for DECIMAL(10,2))",
-                  },
-                  primary: {
-                    type: "boolean",
-                    description: "Whether this field is a primary key",
-                  },
-                  notNull: {
-                    type: "boolean",
-                    description: "Whether this field is NOT NULL",
-                  },
-                  unique: {
-                    type: "boolean",
-                    description: "Whether this field has a UNIQUE constraint",
-                  },
-                  increment: {
-                    type: "boolean",
-                    description: "Whether this field is AUTO_INCREMENT",
-                  },
-                  default: {
-                    type: "string",
-                    description: "Default value for this field",
-                  },
-                  comment: {
-                    type: "string",
-                    description: "Field comment/description",
-                  },
-                  unsigned: {
-                    type: "boolean",
-                    description: "Whether this numeric field is UNSIGNED",
-                  },
-                },
-                required: ["name", "type"],
-              },
-            },
-            required: ["table", "field"],
-          },
-        },
-      },
-      required: ["additions"],
-    },
-  },
-  {
-    name: "modify_fields",
-    description:
-      "Modify existing fields in tables. Use this when the user wants to change field properties like type, default value, not null, unique, comment, etc. WARNING: Renaming fields, changing field types, or removing primary key constraints will FAIL if the field is involved in any relationships (foreign keys). Table name and field name matching is case-insensitive.",
-    parameters: {
-      type: "object",
-      properties: {
-        modifications: {
-          type: "array",
-          description: "Array of field modifications to perform",
-          items: {
-            type: "object",
-            properties: {
-              table: {
-                type: "string",
-                description: "Table name containing the field (case-insensitive)",
-              },
-              field: {
-                type: "string",
-                description: "Name of the field to modify (case-insensitive, matches by current name)",
-              },
-              changes: {
-                type: "object",
-                description: "Changes to apply to the field. Any omitted properties will remain unchanged.",
-                properties: {
-                  name: {
-                    type: "string",
-                    description: "New field name (WARNING: will fail if field is in any relationship)",
-                  },
-                  type: {
-                    type: "string",
-                    description: "New SQL data type (WARNING: will fail if field is in any relationship)",
-                  },
-                  size: {
-                    type: "string",
-                    description: "New type size/precision",
-                  },
-                  primary: {
-                    type: "boolean",
-                    description: "Whether this field is a primary key (WARNING: setting to false will fail if field is referenced by foreign keys)",
-                  },
-                  notNull: {
-                    type: "boolean",
-                    description: "Whether this field is NOT NULL",
-                  },
-                  unique: {
-                    type: "boolean",
-                    description: "Whether this field has a UNIQUE constraint",
-                  },
-                  increment: {
-                    type: "boolean",
-                    description: "Whether this field is AUTO_INCREMENT",
-                  },
-                  default: {
-                    type: "string",
-                    description: "Default value for this field",
-                  },
-                  comment: {
-                    type: "string",
-                    description: "Field comment/description",
-                  },
-                  unsigned: {
-                    type: "boolean",
-                    description: "Whether this numeric field is UNSIGNED",
-                  },
-                },
-              },
-            },
-            required: ["table", "field", "changes"],
-          },
-        },
-      },
-      required: ["modifications"],
-    },
-  },
-];
-
-export function executeTool(
-  toolName,
-  args,
-  { tables, relationships, diagram, setUndoStack, setRedoStack },
-) {
-  let parsedArgs;
-  try {
-    parsedArgs = typeof args === "string" ? JSON.parse(args) : args;
-  } catch {
-    return { success: false, error: `Failed to parse tool arguments: invalid JSON` };
-  }
-
-  const context = {
-    tables,
-    relationships,
-    diagram,
-    setUndoStack,
-    setRedoStack,
-  };
-
-  switch (toolName) {
-    case "inspect_tables":
-      return executeInspectTables(parsedArgs, { tables, relationships });
-    case "create_tables":
-      return executeCreateTables(parsedArgs, { tables, diagram });
-    case "create_relationships":
-      return executeCreateRelationships(parsedArgs, { tables, relationships, diagram });
-    case "add_fields":
-      return executeAddFields(parsedArgs, context);
-    case "modify_fields":
-      return executeModifyFields(parsedArgs, context);
-    default:
-      return { success: false, error: `Unknown tool: ${toolName}` };
-  }
-}
-
 function executeInspectTables(args, { tables, relationships }) {
   const requestedTables = args.tables || [];
   const results = [];
@@ -583,6 +244,356 @@ function executeInspectTables(args, { tables, relationships }) {
       .join(", ")}`;
   }
 
+  return summary;
+}
+
+function executeCreateTables(args, { tables, diagram }) {
+  const { tables: tablesToCreate } = args;
+  const results = [];
+  const existingTableNames = tables.map((t) =>
+    t.name.toLowerCase(),
+  );
+  const createdNames = [];
+  const createdTables = [];
+
+  const baseOffset = tables.length;
+
+  tablesToCreate.forEach((tableDef) => {
+    const tableName = tableDef.name.toLowerCase();
+
+    if (existingTableNames.includes(tableName) || createdNames.includes(tableName)) {
+      results.push({
+        success: false,
+        error: `Table "${tableDef.name}" already exists`,
+        requested_table: tableDef.name,
+      });
+      return;
+    }
+
+    createdNames.push(tableName);
+
+    const fields = tableDef.fields.map((fieldDef) => ({
+      id: nanoid(),
+      name: fieldDef.name,
+      type: fieldDef.type || "INT",
+      default: fieldDef.default || "",
+      check: "",
+      primary: fieldDef.primary || false,
+      unique: fieldDef.unique || false,
+      unsigned: fieldDef.unsigned || false,
+      notNull: fieldDef.notNull || false,
+      increment: fieldDef.increment || false,
+      comment: fieldDef.comment || "",
+      size: fieldDef.size || "",
+      values: [],
+      isArray: false,
+    }));
+
+    const hasPrimary = fields.some((f) => f.primary);
+    let autoAddedId = false;
+    if (!hasPrimary) {
+      fields.unshift({
+        id: nanoid(),
+        name: "id",
+        type: "INT",
+        default: "",
+        check: "",
+        primary: true,
+        unique: false,
+        unsigned: true,
+        notNull: true,
+        increment: true,
+        comment: "",
+        size: "",
+        values: [],
+        isArray: false,
+      });
+      autoAddedId = true;
+    }
+
+    const tableColors = [
+      "#175e7a",
+      "#2d6e4e",
+      "#7a3e17",
+      "#6e2d5e",
+      "#3e176e",
+      "#176e5e",
+    ];
+
+    const successIndex = results.filter((r) => r.success).length;
+
+    const newTable = {
+      id: nanoid(),
+      name: tableDef.name,
+      x: (baseOffset + successIndex) % 4 * 260,
+      y: Math.floor((baseOffset + successIndex) / 4) * 300,
+      locked: false,
+      fields,
+      comment: tableDef.comment || "",
+      indices: [],
+      color: tableColors[successIndex % tableColors.length],
+    };
+
+    diagram.addTable({ table: newTable, index: baseOffset + successIndex });
+    tables.push(newTable);
+    createdTables.push(newTable);
+
+    const fieldSummaries = fields.map(formatFieldForSummary);
+    results.push({
+      success: true,
+      tableName: tableDef.name,
+      table_name: tableDef.name,
+      table_id: newTable.id,
+      fieldCount: fields.length,
+      field_count: fields.length,
+      auto_added_id: autoAddedId,
+      fields: fieldSummaries,
+      comment: tableDef.comment || "",
+    });
+  });
+
+  const successCount = results.filter((r) => r.success).length;
+  const failCount = results.filter((r) => !r.success).length;
+
+  const affectedTables = createdTables.map((t) => ({
+    name: t.name,
+    id: t.id,
+    field_count: t.fields.length,
+    fields: t.fields.map(formatFieldForSummary),
+  }));
+
+  let message = "";
+  if (successCount > 0) {
+    message += `Successfully created ${successCount} table(s): `;
+    message += results
+      .filter((r) => r.success)
+      .map((r) => r.table_name)
+      .join(", ");
+  }
+  if (failCount > 0) {
+    if (message) message += " ";
+    message += `${failCount} table(s) skipped (already exist): `;
+    message += results
+      .filter((r) => !r.success)
+      .map((r) => r.requested_table)
+      .join(", ");
+  }
+
+  const summary = buildToolResultSummary(
+    "create_tables",
+    successCount,
+    failCount,
+    results,
+    affectedTables,
+    []
+  );
+  summary.message = message;
+  return summary;
+}
+
+function executeCreateRelationships(args, { tables, relationships, diagram }) {
+  const { relationships: relationshipsToCreate } = args;
+  const results = [];
+  const createdKeys = new Set();
+  const createdRelationships = [];
+
+  for (const relDef of relationshipsToCreate) {
+    const {
+      from_table: fromTable,
+      from_field: fromField,
+      to_table: toTable,
+      to_field: toField,
+      cardinality,
+      update_constraint: updateConstraint,
+      delete_constraint: deleteConstraint,
+    } = relDef;
+
+    const fromTableName = fromTable.toLowerCase();
+    const toTableName = toTable.toLowerCase();
+    const fromFieldName = fromField.toLowerCase();
+    const toFieldName = toField.toLowerCase();
+
+    const relationshipKey = `${fromTableName}:${fromFieldName}->${toTableName}:${toFieldName}`;
+    const reverseKey = `${toTableName}:${toFieldName}->${fromTableName}:${fromFieldName}`;
+
+    if (createdKeys.has(relationshipKey) || createdKeys.has(reverseKey)) {
+      results.push({
+        success: false,
+        error: `Relationship "${fromTable}.${fromField}" -> "${toTable}.${toField}" was already created in this batch`,
+        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
+      });
+      continue;
+    }
+
+    const existingRelationship = relationships.find((r) => {
+      const startTable = tables.find((t) => t.id === r.startTableId);
+      const endTable = tables.find((t) => t.id === r.endTableId);
+      const startField = startTable?.fields.find((f) => f.id === r.startFieldId);
+      const endField = endTable?.fields.find((f) => f.id === r.endFieldId);
+
+      if (!startTable || !endTable || !startField || !endField) return false;
+
+      const currentKey = `${startTable.name.toLowerCase()}:${startField.name.toLowerCase()}->${endTable.name.toLowerCase()}:${endField.name.toLowerCase()}`;
+      const currentReverse = `${endTable.name.toLowerCase()}:${endField.name.toLowerCase()}->${startTable.name.toLowerCase()}:${startField.name.toLowerCase()}`;
+
+      return currentKey === relationshipKey || currentKey === reverseKey ||
+             currentReverse === relationshipKey || currentReverse === reverseKey;
+    });
+
+    if (existingRelationship) {
+      results.push({
+        success: false,
+        error: `Relationship "${fromTable}.${fromField}" -> "${toTable}.${toField}" already exists`,
+        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
+      });
+      continue;
+    }
+
+    const startTable = tables.find((t) => t.name.toLowerCase() === fromTableName);
+    if (!startTable) {
+      results.push({
+        success: false,
+        error: `Table "${fromTable}" not found`,
+        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
+      });
+      continue;
+    }
+
+    const endTable = tables.find((t) => t.name.toLowerCase() === toTableName);
+    if (!endTable) {
+      results.push({
+        success: false,
+        error: `Table "${toTable}" not found`,
+        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
+      });
+      continue;
+    }
+
+    const startField = startTable.fields.find((f) => f.name.toLowerCase() === fromFieldName);
+    if (!startField) {
+      results.push({
+        success: false,
+        error: `Field "${fromField}" not found in table "${fromTable}"`,
+        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
+      });
+      continue;
+    }
+
+    const endField = endTable.fields.find((f) => f.name.toLowerCase() === toFieldName);
+    if (!endField) {
+      results.push({
+        success: false,
+        error: `Field "${toField}" not found in table "${toTable}"`,
+        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
+      });
+      continue;
+    }
+
+    const validCardinalities = Object.values(Cardinality);
+    const relCardinality = cardinality && validCardinalities.includes(cardinality)
+      ? cardinality
+      : Cardinality.MANY_TO_ONE;
+
+    const validConstraints = Object.values(Constraint);
+    const relUpdateConstraint = updateConstraint && validConstraints.includes(updateConstraint)
+      ? updateConstraint
+      : Constraint.NONE;
+    const relDeleteConstraint = deleteConstraint && validConstraints.includes(deleteConstraint)
+      ? deleteConstraint
+      : Constraint.NONE;
+
+    const cardinalityDisplay = cardinalityDisplayNames[relCardinality] || relCardinality;
+
+    const newRelationship = {
+      id: nanoid(),
+      name: `fk_${startTable.name}_${startField.name}_${endTable.name}`,
+      startTableId: startTable.id,
+      startFieldId: startField.id,
+      endTableId: endTable.id,
+      endFieldId: endField.id,
+      cardinality: relCardinality,
+      updateConstraint: relUpdateConstraint,
+      deleteConstraint: relDeleteConstraint,
+    };
+
+    diagram.addRelationship(newRelationship);
+    relationships.push(newRelationship);
+    createdKeys.add(relationshipKey);
+    createdRelationships.push(newRelationship);
+
+    const constraints = [];
+    if (relUpdateConstraint !== Constraint.NONE) {
+      constraints.push(`ON UPDATE: ${relUpdateConstraint}`);
+    }
+    if (relDeleteConstraint !== Constraint.NONE) {
+      constraints.push(`ON DELETE: ${relDeleteConstraint}`);
+    }
+
+    results.push({
+      success: true,
+      relationship_id: newRelationship.id,
+      relationship_name: newRelationship.name,
+      from_table: fromTable,
+      from_table_id: startTable.id,
+      from_field: fromField,
+      from_field_id: startField.id,
+      to_table: toTable,
+      to_table_id: endTable.id,
+      to_field: toField,
+      to_field_id: endField.id,
+      cardinality: relCardinality,
+      cardinality_display: cardinalityDisplay,
+      constraints: constraints.length > 0 ? constraints : undefined,
+    });
+  }
+
+  const successCount = results.filter((r) => r.success).length;
+  const failCount = results.filter((r) => !r.success).length;
+
+  const affectedRelationships = createdRelationships.map((r) => {
+    const startTable = tables.find((t) => t.id === r.startTableId);
+    const endTable = tables.find((t) => t.id === r.endTableId);
+    const startField = startTable?.fields.find((f) => f.id === r.startFieldId);
+    const endField = endTable?.fields.find((f) => f.id === r.endFieldId);
+
+    return {
+      id: r.id,
+      name: r.name,
+      from_table: startTable?.name,
+      from_field: startField?.name,
+      to_table: endTable?.name,
+      to_field: endField?.name,
+      cardinality: r.cardinality,
+      cardinality_display: cardinalityDisplayNames[r.cardinality] || r.cardinality,
+    };
+  });
+
+  let message = "";
+  if (successCount > 0) {
+    message += `Successfully created ${successCount} relationship(s): `;
+    message += results
+      .filter((r) => r.success)
+      .map((r) => `${r.from_table}.${r.from_field} -> ${r.to_table}.${r.to_field} (${r.cardinality_display})`)
+      .join("; ");
+  }
+  if (failCount > 0) {
+    if (message) message += " ";
+    message += `${failCount} relationship(s) failed: `;
+    message += results
+      .filter((r) => !r.success)
+      .map((r) => r.error)
+      .join("; ");
+  }
+
+  const summary = buildToolResultSummary(
+    "create_relationships",
+    successCount,
+    failCount,
+    results,
+    [],
+    affectedRelationships
+  );
+  summary.message = message;
   return summary;
 }
 
@@ -982,352 +993,419 @@ function executeModifyFields(args, { tables, relationships, diagram, setUndoStac
   return summary;
 }
 
-function executeCreateTables(args, { tables, diagram }) {
-  const { tables: tablesToCreate } = args;
-  const results = [];
-  const existingTableNames = tables.map((t) =>
-    t.name.toLowerCase(),
-  );
-  const createdNames = [];
-  const createdTables = [];
+const toolRegistry = {
+  inspect_tables: {
+    schema: {
+      name: "inspect_tables",
+      description:
+        "Inspect existing tables by name before deciding whether to reuse or modify them. Use this when the full table index suggests a table may be relevant but its fields are not shown in the current prompt.",
+      parameters: {
+        type: "object",
+        properties: {
+          tables: {
+            type: "array",
+            description: "Table names to inspect. Matching is case-insensitive.",
+            items: {
+              type: "string",
+            },
+          },
+        },
+        required: ["tables"],
+      },
+    },
+    executor: executeInspectTables,
+    uiConfig: {
+      getToolLabel: (result, t) => {
+        const successCount = result.details?.filter((r) => r.success).length || 0;
+        return successCount > 0 ? `Inspected ${successCount} table(s)` : (t ? t("ai_tool_executed") : "Tool executed");
+      },
+      getDisplayText: (item) => {
+        return item.tableName || item.table_name || "table";
+      },
+      category: "read",
+    },
+  },
 
-  const baseOffset = tables.length;
+  create_tables: {
+    schema: {
+      name: "create_tables",
+      description:
+        "Create one or more database tables with their fields. Use this when the user wants to design new tables based on their requirements.",
+      parameters: {
+        type: "object",
+        properties: {
+          tables: {
+            type: "array",
+            description: "Array of tables to create",
+            items: {
+              type: "object",
+              properties: {
+                name: {
+                  type: "string",
+                  description: "Table name (use snake_case, e.g. user_orders)",
+                },
+                comment: {
+                  type: "string",
+                  description: "Table comment/description",
+                },
+                fields: {
+                  type: "array",
+                  description: "Array of fields in the table",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: {
+                        type: "string",
+                        description: "Field name (use snake_case)",
+                      },
+                      type: {
+                        type: "string",
+                        description:
+                          "SQL data type (e.g. INT, VARCHAR, TEXT, DATETIME, BOOLEAN)",
+                      },
+                      size: {
+                        type: "string",
+                        description:
+                          "Type size/precision (e.g. '255' for VARCHAR(255), '10,2' for DECIMAL(10,2))",
+                      },
+                      primary: {
+                        type: "boolean",
+                        description: "Whether this field is a primary key",
+                      },
+                      notNull: {
+                        type: "boolean",
+                        description: "Whether this field is NOT NULL",
+                      },
+                      unique: {
+                        type: "boolean",
+                        description: "Whether this field has a UNIQUE constraint",
+                      },
+                      increment: {
+                        type: "boolean",
+                        description: "Whether this field is AUTO_INCREMENT",
+                      },
+                      default: {
+                        type: "string",
+                        description: "Default value for this field",
+                      },
+                      comment: {
+                        type: "string",
+                        description: "Field comment/description",
+                      },
+                      unsigned: {
+                        type: "boolean",
+                        description: "Whether this numeric field is UNSIGNED",
+                      },
+                    },
+                    required: ["name", "type"],
+                  },
+                },
+              },
+              required: ["name", "fields"],
+            },
+          },
+        },
+        required: ["tables"],
+      },
+    },
+    executor: executeCreateTables,
+    uiConfig: {
+      getToolLabel: (result, t) => {
+        const successCount = result.details?.filter((r) => r.success).length || 0;
+        if (successCount > 0 && t) {
+          return t("ai_tables_created", { count: successCount });
+        }
+        return successCount > 0 ? `Created ${successCount} table(s)` : (t ? t("ai_tool_executed") : "Tool executed");
+      },
+      getDisplayText: (item) => {
+        return item.tableName || item.table_name || "table";
+      },
+      category: "write",
+    },
+  },
 
-  tablesToCreate.forEach((tableDef) => {
-    const tableName = tableDef.name.toLowerCase();
+  create_relationships: {
+    schema: {
+      name: "create_relationships",
+      description:
+        "Create foreign key relationships between existing tables. Use this when the user describes relationships like '订单属于用户', '评论关联文章', '表A有一个表B', '表A属于表B' etc. Fields can be existing ones or just created by create_tables.",
+      parameters: {
+        type: "object",
+        properties: {
+          relationships: {
+            type: "array",
+            description: "Array of relationships to create",
+            items: {
+              type: "object",
+              properties: {
+                from_table: {
+                  type: "string",
+                  description: "The table containing the foreign key (e.g. 'orders' that has user_id)",
+                },
+                from_field: {
+                  type: "string",
+                  description: "The foreign key field name (e.g. 'user_id')",
+                },
+                to_table: {
+                  type: "string",
+                  description: "The target table being referenced (e.g. 'users')",
+                },
+                to_field: {
+                  type: "string",
+                  description: "The primary key field being referenced (usually 'id')",
+                },
+                cardinality: {
+                  type: "string",
+                  description: "Relationship cardinality: 'one_to_one', 'one_to_many', 'many_to_one'. Default is 'many_to_one' which is the most common (e.g. many orders belong to one user). from_table is the table with foreign key, to_table is the referenced table.",
+                  enum: ["one_to_one", "one_to_many", "many_to_one"],
+                },
+                update_constraint: {
+                  type: "string",
+                  description: "ON UPDATE constraint action. Default is 'No action'.",
+                  enum: ["No action", "Restrict", "Cascade", "Set null", "Set default"],
+                },
+                delete_constraint: {
+                  type: "string",
+                  description: "ON DELETE constraint action. Default is 'No action'.",
+                  enum: ["No action", "Restrict", "Cascade", "Set null", "Set default"],
+                },
+              },
+              required: ["from_table", "from_field", "to_table", "to_field"],
+            },
+          },
+        },
+        required: ["relationships"],
+      },
+    },
+    executor: executeCreateRelationships,
+    uiConfig: {
+      getToolLabel: (result, t) => {
+        const successCount = result.details?.filter((r) => r.success).length || 0;
+        return successCount > 0 ? `Created ${successCount} relationship(s)` : (t ? t("ai_tool_executed") : "Tool executed");
+      },
+      getDisplayText: (item) => {
+        const from = `${item.from_table || "from"}.${item.from_field || "field"}`;
+        const to = `${item.to_table || "to"}.${item.to_field || "field"}`;
+        const cardinality = item.cardinality_display || item.cardinality || "";
+        return cardinality ? `${from} -> ${to} (${cardinality})` : `${from} -> ${to}`;
+      },
+      category: "write",
+    },
+  },
 
-    if (existingTableNames.includes(tableName) || createdNames.includes(tableName)) {
-      results.push({
-        success: false,
-        error: `Table "${tableDef.name}" already exists`,
-        requested_table: tableDef.name,
-      });
-      return;
-    }
+  add_fields: {
+    schema: {
+      name: "add_fields",
+      description:
+        "Add new fields to existing tables. Use this when the user wants to add columns to an already existing table. Table name and field name matching is case-insensitive.",
+      parameters: {
+        type: "object",
+        properties: {
+          additions: {
+            type: "array",
+            description: "Array of field additions to perform",
+            items: {
+              type: "object",
+              properties: {
+                table: {
+                  type: "string",
+                  description: "Table name to add field to (case-insensitive)",
+                },
+                field: {
+                  type: "object",
+                  description: "Field definition to add",
+                  properties: {
+                    name: {
+                      type: "string",
+                      description: "Field name (use snake_case)",
+                    },
+                    type: {
+                      type: "string",
+                      description:
+                        "SQL data type (e.g. INT, VARCHAR, TEXT, DATETIME, BOOLEAN)",
+                    },
+                    size: {
+                      type: "string",
+                      description:
+                        "Type size/precision (e.g. '255' for VARCHAR(255), '10,2' for DECIMAL(10,2))",
+                    },
+                    primary: {
+                      type: "boolean",
+                      description: "Whether this field is a primary key",
+                    },
+                    notNull: {
+                      type: "boolean",
+                      description: "Whether this field is NOT NULL",
+                    },
+                    unique: {
+                      type: "boolean",
+                      description: "Whether this field has a UNIQUE constraint",
+                    },
+                    increment: {
+                      type: "boolean",
+                      description: "Whether this field is AUTO_INCREMENT",
+                    },
+                    default: {
+                      type: "string",
+                      description: "Default value for this field",
+                    },
+                    comment: {
+                      type: "string",
+                      description: "Field comment/description",
+                    },
+                    unsigned: {
+                      type: "boolean",
+                      description: "Whether this numeric field is UNSIGNED",
+                    },
+                  },
+                  required: ["name", "type"],
+                },
+              },
+              required: ["table", "field"],
+            },
+          },
+        },
+        required: ["additions"],
+      },
+    },
+    executor: executeAddFields,
+    uiConfig: {
+      getToolLabel: (result, t) => {
+        const successCount = result.details?.filter((r) => r.success).length || 0;
+        return successCount > 0 ? `Added ${successCount} field(s)` : (t ? t("ai_tool_executed") : "Tool executed");
+      },
+      getDisplayText: (item) => {
+        const tableName = item.table_actual_name || item.table || item.table_name || item.tableName;
+        const fieldName = item.field_name || item.field;
+        return `${tableName}.${fieldName}`;
+      },
+      category: "write",
+    },
+  },
 
-    createdNames.push(tableName);
+  modify_fields: {
+    schema: {
+      name: "modify_fields",
+      description:
+        "Modify existing fields in tables. Use this when the user wants to change field properties like type, default value, not null, unique, comment, etc. WARNING: Renaming fields, changing field types, or removing primary key constraints will FAIL if the field is involved in any relationships (foreign keys). Table name and field name matching is case-insensitive.",
+      parameters: {
+        type: "object",
+        properties: {
+          modifications: {
+            type: "array",
+            description: "Array of field modifications to perform",
+            items: {
+              type: "object",
+              properties: {
+                table: {
+                  type: "string",
+                  description: "Table name containing the field (case-insensitive)",
+                },
+                field: {
+                  type: "string",
+                  description: "Name of the field to modify (case-insensitive, matches by current name)",
+                },
+                changes: {
+                  type: "object",
+                  description: "Changes to apply to the field. Any omitted properties will remain unchanged.",
+                  properties: {
+                    name: {
+                      type: "string",
+                      description: "New field name (WARNING: will fail if field is in any relationship)",
+                    },
+                    type: {
+                      type: "string",
+                      description: "New SQL data type (WARNING: will fail if field is in any relationship)",
+                    },
+                    size: {
+                      type: "string",
+                      description: "New type size/precision",
+                    },
+                    primary: {
+                      type: "boolean",
+                      description: "Whether this field is a primary key (WARNING: setting to false will fail if field is referenced by foreign keys)",
+                    },
+                    notNull: {
+                      type: "boolean",
+                      description: "Whether this field is NOT NULL",
+                    },
+                    unique: {
+                      type: "boolean",
+                      description: "Whether this field has a UNIQUE constraint",
+                    },
+                    increment: {
+                      type: "boolean",
+                      description: "Whether this field is AUTO_INCREMENT",
+                    },
+                    default: {
+                      type: "string",
+                      description: "Default value for this field",
+                    },
+                    comment: {
+                      type: "string",
+                      description: "Field comment/description",
+                    },
+                    unsigned: {
+                      type: "boolean",
+                      description: "Whether this numeric field is UNSIGNED",
+                    },
+                  },
+                },
+              },
+              required: ["table", "field", "changes"],
+            },
+          },
+        },
+        required: ["modifications"],
+      },
+    },
+    executor: executeModifyFields,
+    uiConfig: {
+      getToolLabel: (result, t) => {
+        const successCount = result.details?.filter((r) => r.success).length || 0;
+        return successCount > 0 ? `Modified ${successCount} field(s)` : (t ? t("ai_tool_executed") : "Tool executed");
+      },
+      getDisplayText: (item) => {
+        const tableName = item.table_actual_name || item.table || item.table_name || item.tableName;
+        const fieldName = item.field_actual_name || item.field;
+        return `${tableName}.${fieldName}`;
+      },
+      category: "write",
+    },
+  },
+};
 
-    const fields = tableDef.fields.map((fieldDef) => ({
-      id: nanoid(),
-      name: fieldDef.name,
-      type: fieldDef.type || "INT",
-      default: fieldDef.default || "",
-      check: "",
-      primary: fieldDef.primary || false,
-      unique: fieldDef.unique || false,
-      unsigned: fieldDef.unsigned || false,
-      notNull: fieldDef.notNull || false,
-      increment: fieldDef.increment || false,
-      comment: fieldDef.comment || "",
-      size: fieldDef.size || "",
-      values: [],
-      isArray: false,
-    }));
+export const toolDefinitions = Object.values(toolRegistry).map((tool) => tool.schema);
 
-    const hasPrimary = fields.some((f) => f.primary);
-    let autoAddedId = false;
-    if (!hasPrimary) {
-      fields.unshift({
-        id: nanoid(),
-        name: "id",
-        type: "INT",
-        default: "",
-        check: "",
-        primary: true,
-        unique: false,
-        unsigned: true,
-        notNull: true,
-        increment: true,
-        comment: "",
-        size: "",
-        values: [],
-        isArray: false,
-      });
-      autoAddedId = true;
-    }
-
-    const tableColors = [
-      "#175e7a",
-      "#2d6e4e",
-      "#7a3e17",
-      "#6e2d5e",
-      "#3e176e",
-      "#176e5e",
-    ];
-
-    const successIndex = results.filter((r) => r.success).length;
-
-    const newTable = {
-      id: nanoid(),
-      name: tableDef.name,
-      x: (baseOffset + successIndex) % 4 * 260,
-      y: Math.floor((baseOffset + successIndex) / 4) * 300,
-      locked: false,
-      fields,
-      comment: tableDef.comment || "",
-      indices: [],
-      color: tableColors[successIndex % tableColors.length],
-    };
-
-    diagram.addTable({ table: newTable, index: baseOffset + successIndex });
-    tables.push(newTable);
-    createdTables.push(newTable);
-
-    const fieldSummaries = fields.map(formatFieldForSummary);
-    results.push({
-      success: true,
-      tableName: tableDef.name,
-      table_name: tableDef.name,
-      table_id: newTable.id,
-      fieldCount: fields.length,
-      field_count: fields.length,
-      auto_added_id: autoAddedId,
-      fields: fieldSummaries,
-      comment: tableDef.comment || "",
-    });
-  });
-
-  const successCount = results.filter((r) => r.success).length;
-  const failCount = results.filter((r) => !r.success).length;
-
-  const affectedTables = createdTables.map((t) => ({
-    name: t.name,
-    id: t.id,
-    field_count: t.fields.length,
-    fields: t.fields.map(formatFieldForSummary),
-  }));
-
-  let message = "";
-  if (successCount > 0) {
-    message += `Successfully created ${successCount} table(s): `;
-    message += results
-      .filter((r) => r.success)
-      .map((r) => r.table_name)
-      .join(", ");
-  }
-  if (failCount > 0) {
-    if (message) message += " ";
-    message += `${failCount} table(s) skipped (already exist): `;
-    message += results
-      .filter((r) => !r.success)
-      .map((r) => r.requested_table)
-      .join(", ");
-  }
-
-  const summary = buildToolResultSummary(
-    "create_tables",
-    successCount,
-    failCount,
-    results,
-    affectedTables,
-    []
-  );
-  summary.message = message;
-  return summary;
+export function getToolUIConfig(toolName) {
+  const tool = toolRegistry[toolName];
+  return tool?.uiConfig || null;
 }
 
-function executeCreateRelationships(args, { tables, relationships, diagram }) {
-  const { relationships: relationshipsToCreate } = args;
-  const results = [];
-  const createdKeys = new Set();
-  const createdRelationships = [];
-
-  for (const relDef of relationshipsToCreate) {
-    const {
-      from_table: fromTable,
-      from_field: fromField,
-      to_table: toTable,
-      to_field: toField,
-      cardinality,
-      update_constraint: updateConstraint,
-      delete_constraint: deleteConstraint,
-    } = relDef;
-
-    const fromTableName = fromTable.toLowerCase();
-    const toTableName = toTable.toLowerCase();
-    const fromFieldName = fromField.toLowerCase();
-    const toFieldName = toField.toLowerCase();
-
-    const relationshipKey = `${fromTableName}:${fromFieldName}->${toTableName}:${toFieldName}`;
-    const reverseKey = `${toTableName}:${toFieldName}->${fromTableName}:${fromFieldName}`;
-
-    if (createdKeys.has(relationshipKey) || createdKeys.has(reverseKey)) {
-      results.push({
-        success: false,
-        error: `Relationship "${fromTable}.${fromField}" -> "${toTable}.${toField}" was already created in this batch`,
-        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
-      });
-      continue;
-    }
-
-    const existingRelationship = relationships.find((r) => {
-      const startTable = tables.find((t) => t.id === r.startTableId);
-      const endTable = tables.find((t) => t.id === r.endTableId);
-      const startField = startTable?.fields.find((f) => f.id === r.startFieldId);
-      const endField = endTable?.fields.find((f) => f.id === r.endFieldId);
-
-      if (!startTable || !endTable || !startField || !endField) return false;
-
-      const currentKey = `${startTable.name.toLowerCase()}:${startField.name.toLowerCase()}->${endTable.name.toLowerCase()}:${endField.name.toLowerCase()}`;
-      const currentReverse = `${endTable.name.toLowerCase()}:${endField.name.toLowerCase()}->${startTable.name.toLowerCase()}:${startField.name.toLowerCase()}`;
-
-      return currentKey === relationshipKey || currentKey === reverseKey ||
-             currentReverse === relationshipKey || currentReverse === reverseKey;
-    });
-
-    if (existingRelationship) {
-      results.push({
-        success: false,
-        error: `Relationship "${fromTable}.${fromField}" -> "${toTable}.${toField}" already exists`,
-        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
-      });
-      continue;
-    }
-
-    const startTable = tables.find((t) => t.name.toLowerCase() === fromTableName);
-    if (!startTable) {
-      results.push({
-        success: false,
-        error: `Table "${fromTable}" not found`,
-        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
-      });
-      continue;
-    }
-
-    const endTable = tables.find((t) => t.name.toLowerCase() === toTableName);
-    if (!endTable) {
-      results.push({
-        success: false,
-        error: `Table "${toTable}" not found`,
-        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
-      });
-      continue;
-    }
-
-    const startField = startTable.fields.find((f) => f.name.toLowerCase() === fromFieldName);
-    if (!startField) {
-      results.push({
-        success: false,
-        error: `Field "${fromField}" not found in table "${fromTable}"`,
-        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
-      });
-      continue;
-    }
-
-    const endField = endTable.fields.find((f) => f.name.toLowerCase() === toFieldName);
-    if (!endField) {
-      results.push({
-        success: false,
-        error: `Field "${toField}" not found in table "${toTable}"`,
-        requested: { from_table: fromTable, from_field: fromField, to_table: toTable, to_field: toField },
-      });
-      continue;
-    }
-
-    const validCardinalities = Object.values(Cardinality);
-    const relCardinality = cardinality && validCardinalities.includes(cardinality)
-      ? cardinality
-      : Cardinality.MANY_TO_ONE;
-
-    const validConstraints = Object.values(Constraint);
-    const relUpdateConstraint = updateConstraint && validConstraints.includes(updateConstraint)
-      ? updateConstraint
-      : Constraint.NONE;
-    const relDeleteConstraint = deleteConstraint && validConstraints.includes(deleteConstraint)
-      ? deleteConstraint
-      : Constraint.NONE;
-
-    const cardinalityDisplay = cardinalityDisplayNames[relCardinality] || relCardinality;
-
-    const newRelationship = {
-      id: nanoid(),
-      name: `fk_${startTable.name}_${startField.name}_${endTable.name}`,
-      startTableId: startTable.id,
-      startFieldId: startField.id,
-      endTableId: endTable.id,
-      endFieldId: endField.id,
-      cardinality: relCardinality,
-      updateConstraint: relUpdateConstraint,
-      deleteConstraint: relDeleteConstraint,
-    };
-
-    diagram.addRelationship(newRelationship);
-    relationships.push(newRelationship);
-    createdKeys.add(relationshipKey);
-    createdRelationships.push(newRelationship);
-
-    const constraints = [];
-    if (relUpdateConstraint !== Constraint.NONE) {
-      constraints.push(`ON UPDATE: ${relUpdateConstraint}`);
-    }
-    if (relDeleteConstraint !== Constraint.NONE) {
-      constraints.push(`ON DELETE: ${relDeleteConstraint}`);
-    }
-
-    results.push({
-      success: true,
-      relationship_id: newRelationship.id,
-      relationship_name: newRelationship.name,
-      from_table: fromTable,
-      from_table_id: startTable.id,
-      from_field: fromField,
-      from_field_id: startField.id,
-      to_table: toTable,
-      to_table_id: endTable.id,
-      to_field: toField,
-      to_field_id: endField.id,
-      cardinality: relCardinality,
-      cardinality_display: cardinalityDisplay,
-      constraints: constraints.length > 0 ? constraints : undefined,
-    });
+export function executeTool(
+  toolName,
+  args,
+  { tables, relationships, diagram, setUndoStack, setRedoStack },
+) {
+  let parsedArgs;
+  try {
+    parsedArgs = typeof args === "string" ? JSON.parse(args) : args;
+  } catch {
+    return { success: false, error: `Failed to parse tool arguments: invalid JSON` };
   }
 
-  const successCount = results.filter((r) => r.success).length;
-  const failCount = results.filter((r) => !r.success).length;
-
-  const affectedRelationships = createdRelationships.map((r) => {
-    const startTable = tables.find((t) => t.id === r.startTableId);
-    const endTable = tables.find((t) => t.id === r.endTableId);
-    const startField = startTable?.fields.find((f) => f.id === r.startFieldId);
-    const endField = endTable?.fields.find((f) => f.id === r.endFieldId);
-
-    return {
-      id: r.id,
-      name: r.name,
-      from_table: startTable?.name,
-      from_field: startField?.name,
-      to_table: endTable?.name,
-      to_field: endField?.name,
-      cardinality: r.cardinality,
-      cardinality_display: cardinalityDisplayNames[r.cardinality] || r.cardinality,
-    };
-  });
-
-  let message = "";
-  if (successCount > 0) {
-    message += `Successfully created ${successCount} relationship(s): `;
-    message += results
-      .filter((r) => r.success)
-      .map((r) => `${r.from_table}.${r.from_field} -> ${r.to_table}.${r.to_field} (${r.cardinality_display})`)
-      .join("; ");
-  }
-  if (failCount > 0) {
-    if (message) message += " ";
-    message += `${failCount} relationship(s) failed: `;
-    message += results
-      .filter((r) => !r.success)
-      .map((r) => r.error)
-      .join("; ");
+  const tool = toolRegistry[toolName];
+  if (!tool) {
+    return { success: false, error: `Unknown tool: ${toolName}` };
   }
 
-  const summary = buildToolResultSummary(
-    "create_relationships",
-    successCount,
-    failCount,
-    results,
-    [],
-    affectedRelationships
-  );
-  summary.message = message;
-  return summary;
+  const context = {
+    tables,
+    relationships,
+    diagram,
+    setUndoStack,
+    setRedoStack,
+  };
+
+  return tool.executor(parsedArgs, context);
 }
