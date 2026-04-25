@@ -948,6 +948,14 @@ export default function ControlPanel({ title, setTitle, lastSaved, modal, setMod
         },
         disabled: layout.readOnly,
       },
+      connect_to_postgres: {
+        name: "Connect PostgreSQL",
+        label: "New",
+        function: () => {
+          setModal(MODAL.IMPORT_POSTGRES);
+        },
+        disabled: layout.readOnly,
+      },
       export_source: {
         ...(database === DB.GENERIC && {
           children: [
