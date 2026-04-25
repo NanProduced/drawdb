@@ -1,6 +1,4 @@
-import { createContext, useState, useCallback, useEffect } from "react";
-
-const STORAGE_KEY = "drawdb_postgres_schema_context";
+import { createContext, useState, useCallback } from "react";
 
 const defaultSchemaContext = {
   connectedSchema: null,
@@ -13,30 +11,6 @@ export const PostgresSchemaContext = createContext(defaultSchemaContext);
 
 export default function PostgresSchemaContextProvider({ children }) {
   const [connectedSchema, setConnectedSchemaState] = useState(null);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setConnectedSchemaState(parsed);
-      }
-    } catch (e) {
-      console.error("Failed to load Postgres schema context:", e);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (connectedSchema) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(connectedSchema));
-      } catch (e) {
-        console.error("Failed to save Postgres schema context:", e);
-      }
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }, [connectedSchema]);
 
   const setConnectedSchema = useCallback((schemaData, connectionInfo) => {
     if (!schemaData) {

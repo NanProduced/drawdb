@@ -69,7 +69,7 @@ export default function ImportPostgres({
   overwrite,
 }) {
   const { t } = useTranslation();
-  const { setConnectedSchema } = usePostgresSchema();
+  const { setConnectedSchema, clearConnectedSchema } = usePostgresSchema();
   const [connection, setConnection] = useState(loadSavedConnection);
   const [status, setStatus] = useState({
     type: STATUS.NONE,
@@ -88,9 +88,10 @@ export default function ImportPostgres({
         if (setFetchedSchema) {
           setFetchedSchema(null);
         }
+        clearConnectedSchema();
       }
     },
-    [schemaData, setFetchedSchema]
+    [schemaData, setFetchedSchema, clearConnectedSchema]
   );
 
   const handleTestConnection = async () => {

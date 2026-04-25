@@ -101,13 +101,15 @@ export default function AIContextProvider({ children, diagramId }) {
   const diagramRef = useRef(null);
   const saveTimerRef = useRef(null);
   const loadedDiagramIdRef = useRef(null);
+  const connectedSchemaRef = useRef(null);
   const { settings } = useSettings();
   const diagram = useDiagram();
   const { setUndoStack, setRedoStack } = useUndoRedo();
-  const { connectedSchema } = usePostgresSchema();
+  const { connectedSchema, clearConnectedSchema } = usePostgresSchema();
   const { t } = useTranslation();
 
   diagramRef.current = diagram;
+  connectedSchemaRef.current = connectedSchema;
 
   const saveMessagesToDB = useCallback(async (msgs, dId) => {
     if (!dId) return;
@@ -134,6 +136,10 @@ export default function AIContextProvider({ children, diagramId }) {
 
   useEffect(() => {
     if (!diagramId) return;
+
+    if (loadedDiagramIdRef.current && loadedDiagramIdRef.current !== diagramId) {
+      clearConnectedSchema();
+    }
 
     const loadMessages = async () => {
       try {
@@ -164,7 +170,7 @@ export default function AIContextProvider({ children, diagramId }) {
         saveMessagesToDB(messagesRef.current, diagramId);
       }
     };
-  }, [diagramId, saveMessagesToDB]);
+  }, [diagramId, saveMessagesToDB, clearConnectedSchema]);
 
   useEffect(() => {
     if (!loadedDiagramIdRef.current) return;
@@ -228,7 +234,7 @@ export default function AIContextProvider({ children, diagramId }) {
           const systemPrompt = buildSystemPrompt(database, tables, relationships, {
             relevantTableIds,
             relevantTableNames,
-            connectedSchema,
+            connectedSchema: connectedSchemaRef.current,
           });
 
           const apiMessages = [
