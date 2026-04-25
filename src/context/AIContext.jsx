@@ -1,6 +1,6 @@
 import { createContext, useState, useCallback, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useSettings, useDiagram, useUndoRedo } from "../hooks";
+import { useSettings, useDiagram, useUndoRedo, usePostgresSchema } from "../hooks";
 import { chatCompletion } from "../services/aiService";
 import { executeTool, toolDefinitions } from "../services/aiTools";
 import { buildSystemPrompt } from "../services/aiPrompts";
@@ -104,6 +104,7 @@ export default function AIContextProvider({ children, diagramId }) {
   const { settings } = useSettings();
   const diagram = useDiagram();
   const { setUndoStack, setRedoStack } = useUndoRedo();
+  const { connectedSchema } = usePostgresSchema();
   const { t } = useTranslation();
 
   diagramRef.current = diagram;
@@ -227,6 +228,7 @@ export default function AIContextProvider({ children, diagramId }) {
           const systemPrompt = buildSystemPrompt(database, tables, relationships, {
             relevantTableIds,
             relevantTableNames,
+            connectedSchema,
           });
 
           const apiMessages = [

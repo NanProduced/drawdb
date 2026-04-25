@@ -21,6 +21,10 @@ const MAX_TABLES_TO_SHOW = 20;
 const MAX_FIELDS_PER_TABLE = 30;
 const MAX_RELATIONSHIPS_TO_SHOW = 15;
 
+const MAX_PG_TABLES_TO_SHOW = 15;
+const MAX_PG_FIELDS_PER_TABLE = 20;
+const MAX_PG_FKS_TO_SHOW = 20;
+
 function formatFieldForPrompt(field) {
   const parts = [field.name];
   const typeWithSize = field.size ? `${field.type}(${field.size})` : field.type;
@@ -261,7 +265,157 @@ function buildDiagramSnapshot(tables, relationships, options = {}) {
   };
 }
 
+function formatPgFieldForPrompt(field) {
+  const parts = [field.name];
+  const typeWithSize = field.size ? `${field.type}(${field.size})` : field.type;
+  parts.push(typeWithSize);
+
+  const constraints = [];
+  if (field.isPrimaryKey) constraints.push("PK");
+  if (!field.isNullable) constraints.push("NOT NULL");
+  if (field.isUnique) constraints.push("UNIQUE");
+
+  if (constraints.length > 0) {
+    parts.push(`[${constraints.join(", ")}]`);
+  }
+
+  if (field.comment) {
+    parts.push(`-- ${field.comment}`);
+  }
+
+  return parts.join(" ");
+}
+
+function formatPgTableForPrompt(table, tableIndex) {
+  const lines = [];
+  const commentLine = table.comment ? ` -- ${table.comment}` : "";
+  lines.push(`[${tableIndex}] Table: ${table.name}${commentLine}`);
+
+  const fieldCount = table.fieldCount || table.fields?.length || 0;
+  const fields = table.fields || [];
+  const showFields = Math.min(fields.length, MAX_PG_FIELDS_PER_TABLE);
+  const truncatedFields = fields.length > MAX_PG_FIELDS_PER_TABLE;
+
+  for (let i = 0; i < showFields; i++) {
+    lines.push(`  ${formatPgFieldForPrompt(fields[i])}`);
+  }
+
+  if (truncatedFields) {
+    lines.push(`  ... (${fieldCount - MAX_PG_FIELDS_PER_TABLE} more fields)`);
+  }
+
+  if (table.primaryKey && table.primaryKey.columns && table.primaryKey.columns.length > 0) {
+    const pkColumns = table.primaryKey.columns.join(", ");
+    lines.push(`  Primary Key: (${pkColumns})`);
+  }
+
+  if (table.uniqueConstraints && table.uniqueConstraints.length > 0) {
+    table.uniqueConstraints.forEach((uc) => {
+      if (uc.columns && uc.columns.length > 1) {
+        const ucColumns = uc.columns.join(", ");
+        lines.push(`  Unique Constraint: (${ucColumns})`);
+      }
+    });
+  }
+
+  return lines.join("\n");
+}
+
+function formatPgForeignKeyForPrompt(fk, fkIndex) {
+  const constraints = [];
+  if (fk.updateRule && fk.updateRule !== "NO ACTION" && fk.updateRule !== "NO ACTION") {
+    constraints.push(`ON UPDATE: ${fk.updateRule}`);
+  }
+  if (fk.deleteRule && fk.deleteRule !== "NO ACTION" && fk.deleteRule !== "NO ACTION") {
+    constraints.push(`ON DELETE: ${fk.deleteRule}`);
+  }
+  const constraintStr = constraints.length > 0 ? ` [${constraints.join(", ")}]` : "";
+
+  return `[${fkIndex}] ${fk.columnName} -> ${fk.foreignTableName}.${fk.foreignColumnName}${constraintStr}`;
+}
+
+function buildFullPgTableIndex(tables) {
+  if (!tables || tables.length === 0) return "";
+
+  const lines = [];
+  lines.push("----- ALL TABLES INDEX -----");
+  tables.forEach((table, index) => {
+    const fieldCount = table.fieldCount || table.fields?.length || 0;
+    const comment = table.comment ? ` -- ${table.comment}` : "";
+    lines.push(`[${index + 1}] ${table.name} (${fieldCount} fields)${comment}`);
+  });
+  return lines.join("\n");
+}
+
+function buildPgSchemaSnapshot(connectedSchema) {
+  if (!connectedSchema || !connectedSchema.tables || connectedSchema.tables.length === 0) {
+    return null;
+  }
+
+  const tableCount = connectedSchema.tables.length;
+  const allForeignKeys = [];
+  connectedSchema.tables.forEach((table) => {
+    if (table.foreignKeys && table.foreignKeys.length > 0) {
+      table.foreignKeys.forEach((fk) => {
+        allForeignKeys.push({
+          ...fk,
+          tableName: table.name,
+        });
+      });
+    }
+  });
+  const fkCount = allForeignKeys.length;
+
+  const fullIndex = buildFullPgTableIndex(connectedSchema.tables);
+
+  const tablesToShow = Math.min(tableCount, MAX_PG_TABLES_TO_SHOW);
+  const truncatedTables = tableCount > MAX_PG_TABLES_TO_SHOW;
+
+  const fksToShow = Math.min(fkCount, MAX_PG_FKS_TO_SHOW);
+  const truncatedFks = fkCount > MAX_PG_FKS_TO_SHOW;
+
+  const truncated = truncatedTables || truncatedFks;
+
+  const tableLines = [];
+  for (let i = 0; i < tablesToShow; i++) {
+    tableLines.push(formatPgTableForPrompt(connectedSchema.tables[i], i + 1));
+  }
+
+  if (truncatedTables) {
+    const notShownCount = tableCount - MAX_PG_TABLES_TO_SHOW;
+    tableLines.push(
+      `\n... (${notShownCount} more tables not shown. See full index above for all table names.)`
+    );
+  }
+
+  const fkLines = [];
+  if (allForeignKeys.length > 0) {
+    for (let i = 0; i < fksToShow; i++) {
+      const fk = allForeignKeys[i];
+      fkLines.push(`[${i + 1}] ${fk.tableName}.${formatPgForeignKeyForPrompt(fk, i + 1).slice(5)}`);
+    }
+
+    if (truncatedFks) {
+      fkLines.push(`... (${fkCount - MAX_PG_FKS_TO_SHOW} more foreign keys not shown)`);
+    }
+  }
+
+  const summary = `Connected PostgreSQL database has ${tableCount} table(s) and ${fkCount} foreign key relationship(s).`;
+
+  return {
+    summary,
+    tablesSection: tableLines.join("\n\n"),
+    foreignKeysSection: fkLines.join("\n"),
+    truncated,
+    fullIndex,
+    database: connectedSchema.database,
+    schema: connectedSchema.schema,
+    fetchedAt: connectedSchema.fetchedAt,
+  };
+}
+
 export function buildSystemPrompt(database, tables, relationships, options = {}) {
+  const { connectedSchema } = options;
   const dbDisplayName = dbDisplayNames[database] || database;
   const typeMap = dbToTypes[database];
   const availableTypes = typeMap
@@ -296,11 +450,51 @@ ${snapshot.relationshipsSection}`;
     diagramInfo = "\n\nNo tables exist in the diagram yet. Start by creating tables with create_tables.";
   }
 
+  let connectedSchemaInfo = "";
+  const pgSnapshot = buildPgSchemaSnapshot(connectedSchema);
+  if (pgSnapshot) {
+    connectedSchemaInfo = `\n\n===== CONNECTED POSTGRESQL DATABASE =====
+Database: ${pgSnapshot.database || "unknown"}
+Schema: ${pgSnapshot.schema || "public"}
+${pgSnapshot.summary}
+
+${pgSnapshot.fullIndex}
+
+----- TABLES DETAIL -----
+${pgSnapshot.tablesSection}`;
+
+    if (pgSnapshot.foreignKeysSection) {
+      connectedSchemaInfo += `\n\n----- FOREIGN KEYS -----
+${pgSnapshot.foreignKeysSection}`;
+    }
+
+    if (pgSnapshot.truncated) {
+      connectedSchemaInfo += `\n\n(Note: Database schema output truncated to fit context limits. See "ALL TABLES INDEX" above for complete table list. This schema is read-only - you cannot modify the actual database.)`;
+    }
+
+    connectedSchemaInfo += `\n===== END CONNECTED DATABASE =====`;
+  }
+
   return `You are DrawDB's AI assistant, an expert database designer. You help users analyze requirements, create database table structures, and establish relationships between tables.
 
 Current database type: ${dbDisplayName}
 Available data types: ${availableTypes}
 ${diagramInfo}
+${connectedSchemaInfo}
+
+===== CRITICAL SECURITY NOTE =====
+IMPORTANT: The connected PostgreSQL database schema is READ-ONLY for you. You CANNOT and MUST NOT perform any write operations on the actual database. This includes:
+- NEVER executing INSERT, UPDATE, DELETE, DROP, ALTER, or any other DDL/DML statements
+- NEVER modifying table structures, data, or permissions in the actual database
+- NEVER creating, dropping, or altering any database objects directly
+
+Your tools (create_tables, add_fields, modify_fields, create_relationships, etc.) ONLY modify the DIAGRAM on the canvas, NOT the actual database. The connected schema information is provided to help you:
+1. Understand the existing database structure for modeling advice
+2. Suggest improvements or extensions to the schema
+3. Help users import or reverse-engineer the database structure
+
+If the user asks you to modify the actual database, politely explain that you can only help design the diagram and generate SQL scripts, but cannot execute changes directly.
+===== END SECURITY NOTE =====
 
 IMPORTANT - How to read the snapshot:
 - Tables show field details: name, type, constraints [PK=Primary Key, NOT NULL, UNIQUE, AUTO_INCREMENT, UNSIGNED], default values, and comments

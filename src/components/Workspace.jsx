@@ -34,6 +34,7 @@ import { nanoid } from "nanoid";
 import { mergeCustomTypes } from "../utils/customTypes";
 import AIChatWindow from "./AIChat/AIChatWindow";
 import AIContextProvider from "../context/AIContext";
+import PostgresSchemaContextProvider from "../context/PostgresSchemaContext";
 
 export const IdContext = createContext({
   gistId: "",
@@ -470,64 +471,65 @@ export default function WorkSpace() {
   }, [load]);
 
   return (
-    <div className="h-full flex flex-col overflow-hidden theme">
-      <IdContext.Provider value={{ gistId, setGistId, version, setVersion }}>
-        <ControlPanel
-          title={title}
-          setTitle={setTitle}
-          lastSaved={lastSaved}
-          setLastSaved={setLastSaved}
-          modal={modal}
-          setModal={setModal}
-        />
-      </IdContext.Provider>
-      <div
-        className="flex h-full overflow-y-auto"
-        onPointerUp={(e) => e.isPrimary && setResize(false)}
-        onPointerLeave={(e) => e.isPrimary && setResize(false)}
-        onPointerMove={(e) => e.isPrimary && handleResize(e)}
-        onPointerDown={(e) => {
-          // Required for onPointerLeave to trigger when a touch pointer leaves
-          // https://stackoverflow.com/a/70976017/1137077
-          e.target.releasePointerCapture(e.pointerId);
-        }}
-        style={isRtl(i18n.language) ? { direction: "rtl" } : {}}
-      >
-        {layout.sidebar && (
-          <SidePanel resize={resize} setResize={setResize} width={width} />
-        )}
-        <div className="relative w-full h-full overflow-hidden">
-          <CanvasContextProvider className="h-full w-full">
-            <Canvas saveState={saveState} setSaveState={setSaveState} />
-          </CanvasContextProvider>
-          {version && (
-            <div className="absolute right-8 top-2 space-x-2">
-              <Button
-                icon={<i className="fa-solid fa-rotate-right mt-0.5"></i>}
-                onClick={() => setShowRestoreModal(true)}
-              >
-                {t("restore_version")}
-              </Button>
-              <Button
-                type="tertiary"
-                onClick={returnToCurrentDiagram}
-                icon={<i className="bi bi-arrow-return-right mt-1"></i>}
-              >
-                {t("return_to_current")}
-              </Button>
-            </div>
+    <PostgresSchemaContextProvider>
+      <div className="h-full flex flex-col overflow-hidden theme">
+        <IdContext.Provider value={{ gistId, setGistId, version, setVersion }}>
+          <ControlPanel
+            title={title}
+            setTitle={setTitle}
+            lastSaved={lastSaved}
+            setLastSaved={setLastSaved}
+            modal={modal}
+            setModal={setModal}
+          />
+        </IdContext.Provider>
+        <div
+          className="flex h-full overflow-y-auto"
+          onPointerUp={(e) => e.isPrimary && setResize(false)}
+          onPointerLeave={(e) => e.isPrimary && setResize(false)}
+          onPointerMove={(e) => e.isPrimary && handleResize(e)}
+          onPointerDown={(e) => {
+            // Required for onPointerLeave to trigger when a touch pointer leaves
+            // https://stackoverflow.com/a/70976017/1137077
+            e.target.releasePointerCapture(e.pointerId);
+          }}
+          style={isRtl(i18n.language) ? { direction: "rtl" } : {}}
+        >
+          {layout.sidebar && (
+            <SidePanel resize={resize} setResize={setResize} width={width} />
           )}
-          {!(layout.sidebar || layout.toolbar || layout.header) && (
-            <div className="fixed right-5 bottom-4">
-              <FloatingControls />
-            </div>
-          )}
-          <AIContextProvider diagramId={loadedDiagramId}>
-            <AIChatWindow setModal={setModal} />
-          </AIContextProvider>
+          <div className="relative w-full h-full overflow-hidden">
+            <CanvasContextProvider className="h-full w-full">
+              <Canvas saveState={saveState} setSaveState={setSaveState} />
+            </CanvasContextProvider>
+            {version && (
+              <div className="absolute right-8 top-2 space-x-2">
+                <Button
+                  icon={<i className="fa-solid fa-rotate-right mt-0.5"></i>}
+                  onClick={() => setShowRestoreModal(true)}
+                >
+                  {t("restore_version")}
+                </Button>
+                <Button
+                  type="tertiary"
+                  onClick={returnToCurrentDiagram}
+                  icon={<i className="bi bi-arrow-return-right mt-1"></i>}
+                >
+                  {t("return_to_current")}
+                </Button>
+              </div>
+            )}
+            {!(layout.sidebar || layout.toolbar || layout.header) && (
+              <div className="fixed right-5 bottom-4">
+                <FloatingControls />
+              </div>
+            )}
+            <AIContextProvider diagramId={loadedDiagramId}>
+              <AIChatWindow setModal={setModal} />
+            </AIContextProvider>
+          </div>
         </div>
-      </div>
-      <Modal
+        <Modal
         centered
         size="medium"
         closable={false}
@@ -597,6 +599,7 @@ export default function WorkSpace() {
       >
         {t("restore_warning")}
       </Modal>
-    </div>
+      </div>
+    </PostgresSchemaContextProvider>
   );
 }
