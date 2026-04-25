@@ -1064,39 +1064,26 @@ function executeArrangeTables(args, { tables, relationships, diagram, setUndoSta
   const { moves, tablesToArrange } = arrangeResult;
 
   if (moves.length > 0) {
-    const MAX_DISPLAY_ITEMS = 3;
-    
-    moves.forEach((move, index) => {
+    moves.forEach((move) => {
       const table = tables.find((t) => t.id === move.tableId);
       if (table) {
         table.x = move.newX;
         table.y = move.newY;
         diagram.updateTable(move.tableId, { x: move.newX, y: move.newY });
 
-        if (index < MAX_DISPLAY_ITEMS) {
-          results.push({
-            success: true,
-            table_name: move.tableName,
-            table_id: move.tableId,
-            action: "moved",
-            old_x: move.oldX,
-            old_y: move.oldY,
-            new_x: move.newX,
-            new_y: move.newY,
-            display_text: move.tableName,
-          });
-        }
+        results.push({
+          success: true,
+          table_name: move.tableName,
+          table_id: move.tableId,
+          action: "moved",
+          old_x: move.oldX,
+          old_y: move.oldY,
+          new_x: move.newX,
+          new_y: move.newY,
+          display_text: move.tableName,
+        });
       }
     });
-
-    if (moves.length > MAX_DISPLAY_ITEMS) {
-      const remaining = moves.length - MAX_DISPLAY_ITEMS;
-      results.push({
-        success: true,
-        action: "summary",
-        display_text: `等${remaining}张`,
-      });
-    }
 
     if (setUndoStack && setRedoStack) {
       const undoRedoEntry = buildUndoRedoForArrange(moves);
@@ -1107,7 +1094,7 @@ function executeArrangeTables(args, { tables, relationships, diagram, setUndoSta
     }
   }
 
-  const successCount = results.filter((r) => r.success).length;
+  const successCount = moves.length;
   const failCount = results.filter((r) => !r.success).length;
 
   const affectedTables = moves.map((move) => {
