@@ -16,6 +16,7 @@ import {
   getDatabaseStructure,
   PostgresConnectionError,
 } from "../../../api/postgres";
+import { usePostgresSchema } from "../../../hooks";
 
 const STORAGE_KEY = "drawdb_postgres_connection";
 
@@ -68,6 +69,7 @@ export default function ImportPostgres({
   overwrite,
 }) {
   const { t } = useTranslation();
+  const { setConnectedSchema } = usePostgresSchema();
   const [connection, setConnection] = useState(loadSavedConnection);
   const [status, setStatus] = useState({
     type: STATUS.NONE,
@@ -153,6 +155,10 @@ export default function ImportPostgres({
         if (setFetchedSchema) {
           setFetchedSchema(result.data);
         }
+        setConnectedSchema(result.data, {
+          database: connection.database,
+          schema: connection.schema,
+        });
         setStatus({
           type: STATUS.OK,
           message: t("postgres_tables_fetched", { count: result.data.tables?.length || 0 }),
