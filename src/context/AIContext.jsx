@@ -196,13 +196,11 @@ export default function AIContextProvider({ children, diagramId }) {
 
         const currentDiagram = diagramRef.current;
         const database = currentDiagram.database;
+        const tables = deepCloneTables(currentDiagram.tables);
+        const relationships = deepCloneRelationships(currentDiagram.relationships);
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
-
-          const freshDiagram = diagramRef.current;
-          const tables = deepCloneTables(freshDiagram.tables);
-          const relationships = deepCloneRelationships(freshDiagram.relationships);
 
           const streamingMessage = {
             role: "assistant",
