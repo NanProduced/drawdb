@@ -1391,12 +1391,40 @@ export function executeTool(
   try {
     parsedArgs = typeof args === "string" ? JSON.parse(args) : args;
   } catch {
-    return { success: false, error: `Failed to parse tool arguments: invalid JSON` };
+    return {
+      tool: toolName,
+      success: false,
+      successCount: 0,
+      failCount: 1,
+      message: `Failed to execute tool "${toolName}": Invalid JSON in tool arguments`,
+      details: [
+        {
+          success: false,
+          error: `Failed to parse tool arguments: invalid JSON`,
+        },
+      ],
+      affected_tables: [],
+      affected_relationships: [],
+    };
   }
 
   const tool = toolRegistry[toolName];
   if (!tool) {
-    return { success: false, error: `Unknown tool: ${toolName}` };
+    return {
+      tool: toolName,
+      success: false,
+      successCount: 0,
+      failCount: 1,
+      message: `Failed to execute tool: Unknown tool "${toolName}"`,
+      details: [
+        {
+          success: false,
+          error: `Unknown tool: ${toolName}`,
+        },
+      ],
+      affected_tables: [],
+      affected_relationships: [],
+    };
   }
 
   const context = {
