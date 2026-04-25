@@ -108,18 +108,64 @@ export default function ChatMessage({ message }) {
       result = { message: message.content };
     }
 
-    const isCreateTables = message.toolName === "create_tables";
+    const toolName = message.toolName;
     const successCount = result.results?.filter((r) => r.success).length || 0;
+    const hasSuccess = successCount > 0;
+
+    const getDisplayText = (r) => {
+      if (toolName === "create_tables") {
+        return r.tableName || r.table_name || "table";
+      }
+      if (toolName === "add_fields") {
+        const tableName = r.table_actual_name || r.table || r.table_name || r.tableName;
+        const fieldName = r.field_name || r.field;
+        return `${tableName}.${fieldName}`;
+      }
+      if (toolName === "modify_fields") {
+        const tableName = r.table_actual_name || r.table || r.table_name || r.tableName;
+        const fieldName = r.field_actual_name || r.field;
+        return `${tableName}.${fieldName}`;
+      }
+      if (toolName === "create_relationships") {
+        const from = `${r.from_table || "from"}.${r.from_field || "field"}`;
+        const to = `${r.to_table || "to"}.${r.to_field || "field"}`;
+        const cardinality = r.cardinality_display || r.cardinality || "";
+        return cardinality ? `${from} -> ${to} (${cardinality})` : `${from} -> ${to}`;
+      }
+      return r.tableName || r.table_name || r.table || "item";
+    };
+
+    const getToolLabel = () => {
+      switch (toolName) {
+        case "create_tables":
+          return hasSuccess ? t("ai_tables_created", { count: successCount }) : t("ai_tool_executed");
+        case "create_relationships":
+          return hasSuccess ? `Created ${successCount} relationship(s)` : t("ai_tool_executed");
+        case "add_fields":
+          return hasSuccess ? `Added ${successCount} field(s)` : t("ai_tool_executed");
+        case "modify_fields":
+          return hasSuccess ? `Modified ${successCount} field(s)` : t("ai_tool_executed");
+        default:
+          return t("ai_tool_executed");
+      }
+    };
+
+    const isSuccessTool = hasSuccess && (
+      toolName === "create_tables" ||
+      toolName === "create_relationships" ||
+      toolName === "add_fields" ||
+      toolName === "modify_fields"
+    );
 
     return (
       <div className="flex justify-start">
         <div
           className="max-w-[85%] rounded-lg px-3 py-2.5 text-sm"
           style={{
-            background: isCreateTables && successCount > 0
+            background: isSuccessTool
               ? "rgba(var(--semi-green-5), 0.08)"
               : "rgba(var(--semi-grey-1), 1)",
-            border: "1px solid " + (isCreateTables && successCount > 0
+            border: "1px solid " + (isSuccessTool
               ? "rgba(var(--semi-green-5), 0.2)"
               : "rgba(var(--semi-grey-3), 1)"),
           }}
@@ -127,13 +173,13 @@ export default function ChatMessage({ message }) {
           <div className="flex items-center gap-2 mb-1">
             <i
               className={
-                isCreateTables && successCount > 0
+                isSuccessTool
                   ? "fa-solid fa-check-circle"
                   : "fa-solid fa-circle-info"
               }
               style={{
                 fontSize: "11px",
-                color: isCreateTables && successCount > 0
+                color: isSuccessTool
                   ? "rgba(var(--semi-green-5), 1)"
                   : "var(--semi-color-text-3)",
               }}
@@ -141,32 +187,33 @@ export default function ChatMessage({ message }) {
             <span
               className="text-xs font-medium"
               style={{
-                color: isCreateTables && successCount > 0
+                color: isSuccessTool
                   ? "rgba(var(--semi-green-5), 1)"
                   : "var(--semi-color-text-2)",
               }}
             >
-              {isCreateTables && successCount > 0
-                ? t("ai_tables_created", { count: successCount })
-                : t("ai_tool_executed")}
+              {getToolLabel()}
             </span>
           </div>
           {result.results?.filter((r) => r.success).length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-1.5">
               {result.results
                 .filter((r) => r.success)
-                .map((r, i) => (
-                  <span
-                    key={i}
-                    className="text-xs px-2 py-0.5 rounded-md font-mono"
-                    style={{
-                      background: "rgba(var(--semi-blue-5), 0.1)",
-                      color: "rgba(var(--semi-blue-5), 1)",
-                    }}
-                  >
-                    {r.tableName}
-                  </span>
-                ))}
+                .map((r, i) => {
+                  const displayText = getDisplayText(r);
+                  return (
+                    <span
+                      key={i}
+                      className="text-xs px-2 py-0.5 rounded-md font-mono"
+                      style={{
+                        background: "rgba(var(--semi-blue-5), 0.1)",
+                        color: "rgba(var(--semi-blue-5), 1)",
+                      }}
+                    >
+                      {displayText}
+                    </span>
+                  );
+                })}
             </div>
           )}
           {result.results?.filter((r) => !r.success).length > 0 && (

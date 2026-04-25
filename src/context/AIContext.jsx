@@ -199,6 +199,17 @@ export default function AIContextProvider({ children, diagramId }) {
         const tables = deepCloneTables(currentDiagram.tables);
         const relationships = deepCloneRelationships(currentDiagram.relationships);
 
+        const relevantTableIdsSet = new Set();
+        const relevantTableNamesSet = new Set();
+
+        const userTextLower = text.toLowerCase();
+        tables.forEach((table) => {
+          const tableNameLower = table.name.toLowerCase();
+          if (userTextLower.includes(tableNameLower)) {
+            relevantTableNamesSet.add(table.name);
+          }
+        });
+
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
 
@@ -210,7 +221,13 @@ export default function AIContextProvider({ children, diagramId }) {
           messagesRef.current = currentMessages;
           setMessages([...currentMessages]);
 
-          const systemPrompt = buildSystemPrompt(database, tables, relationships);
+          const relevantTableIds = Array.from(relevantTableIdsSet);
+          const relevantTableNames = Array.from(relevantTableNamesSet);
+
+          const systemPrompt = buildSystemPrompt(database, tables, relationships, {
+            relevantTableIds,
+            relevantTableNames,
+          });
 
           const apiMessages = [
             { role: "system", content: systemPrompt },
@@ -272,6 +289,21 @@ export default function AIContextProvider({ children, diagramId }) {
                   setRedoStack,
                 },
               );
+
+              if (toolResult && typeof toolResult === "object") {
+                if (toolResult.affected_tables && Array.isArray(toolResult.affected_tables)) {
+                  toolResult.affected_tables.forEach((t) => {
+                    if (t.id) relevantTableIdsSet.add(t.id);
+                    if (t.name) relevantTableNamesSet.add(t.name);
+                  });
+                }
+                if (toolResult.affected_relationships && Array.isArray(toolResult.affected_relationships)) {
+                  toolResult.affected_relationships.forEach((r) => {
+                    if (r.from_table) relevantTableNamesSet.add(r.from_table);
+                    if (r.to_table) relevantTableNamesSet.add(r.to_table);
+                  });
+                }
+              }
 
               const toolMessage = {
                 role: "tool",

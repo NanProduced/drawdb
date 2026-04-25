@@ -91,37 +91,154 @@ function formatRelationshipForPrompt(rel, tables, relIndex) {
   return `[${relIndex}] ${startTable.name}.${startField.name} -> ${endTable.name}.${endField.name} (${cardinality})${constraintStr}`;
 }
 
-function buildDiagramSnapshot(tables, relationships) {
+function buildFullTableIndex(tables) {
+  if (!tables || tables.length === 0) return "";
+  
+  const lines = [];
+  lines.push("----- ALL TABLES INDEX -----");
+  tables.forEach((table, index) => {
+    const fieldCount = table.fields.length;
+    const comment = table.comment ? ` -- ${table.comment}` : "";
+    lines.push(`[${index + 1}] ${table.name} (${fieldCount} fields)${comment}`);
+  });
+  return lines.join("\n");
+}
+
+function getRelatedTableIds(tables, relevantTableIds, relevantTableNames) {
+  const relatedIds = new Set();
+  
+  if (relevantTableIds && Array.isArray(relevantTableIds)) {
+    relevantTableIds.forEach((id) => relatedIds.add(id));
+  }
+  
+  if (relevantTableNames && Array.isArray(relevantTableNames)) {
+    const lowerNames = relevantTableNames.map((n) => n.toLowerCase());
+    tables.forEach((table) => {
+      if (lowerNames.includes(table.name.toLowerCase())) {
+        relatedIds.add(table.id);
+      }
+    });
+  }
+  
+  return Array.from(relatedIds);
+}
+
+function buildDiagramSnapshot(tables, relationships, options = {}) {
+  const {
+    relevantTableIds = [],
+    relevantTableNames = [],
+  } = options;
+
   if (!tables || tables.length === 0) {
     return {
       summary: "No tables exist in the diagram yet.",
       tablesSection: "",
       relationshipsSection: "",
       truncated: false,
+      fullIndex: "",
     };
   }
 
   const tableCount = tables.length;
   const relCount = relationships?.length || 0;
-  const showTables = Math.min(tableCount, MAX_TABLES_TO_SHOW);
-  const showRels = Math.min(relCount, MAX_RELATIONSHIPS_TO_SHOW);
-  const truncatedTables = tableCount > MAX_TABLES_TO_SHOW;
-  const truncatedRels = relCount > MAX_RELATIONSHIPS_TO_SHOW;
-  const truncated = truncatedTables || truncatedRels;
-
-  const tableLines = [];
-  for (let i = 0; i < showTables; i++) {
-    tableLines.push(formatTableForPrompt(tables[i], i + 1));
+  const fullIndex = buildFullTableIndex(tables);
+  
+  const relatedIds = getRelatedTableIds(tables, relevantTableIds, relevantTableNames);
+  const relatedIdSet = new Set(relatedIds);
+  
+  const prioritizedTables = [];
+  const otherTables = [];
+  
+  tables.forEach((table) => {
+    if (relatedIdSet.has(table.id)) {
+      prioritizedTables.push(table);
+    } else {
+      otherTables.push(table);
+    }
+  });
+  
+  const tablesToShow = [];
+  const detailedSlots = Math.min(MAX_TABLES_TO_SHOW, tables.length);
+  
+  const prioritizedToShow = Math.min(prioritizedTables.length, detailedSlots);
+  for (let i = 0; i < prioritizedToShow; i++) {
+    tablesToShow.push({
+      table: prioritizedTables[i],
+      isRelevant: true,
+      index: tables.indexOf(prioritizedTables[i]) + 1,
+    });
+  }
+  
+  const remainingSlots = detailedSlots - prioritizedToShow;
+  for (let i = 0; i < remainingSlots && i < otherTables.length; i++) {
+    tablesToShow.push({
+      table: otherTables[i],
+      isRelevant: false,
+      index: tables.indexOf(otherTables[i]) + 1,
+    });
   }
 
-  if (truncatedTables) {
-    tableLines.push(`... (${tableCount - MAX_TABLES_TO_SHOW} more tables not shown)`);
+  const showRels = Math.min(relCount, MAX_RELATIONSHIPS_TO_SHOW);
+  const truncatedRels = relCount > MAX_RELATIONSHIPS_TO_SHOW;
+  
+  const truncatedOtherTables = tables.length > MAX_TABLES_TO_SHOW;
+  const truncated = truncatedOtherTables || truncatedRels;
+
+  const tableLines = [];
+  
+  if (prioritizedTables.length > 0) {
+    tableLines.push("----- RELEVANT TABLES (detailed) -----");
+    const relevantToShow = tablesToShow.filter((t) => t.isRelevant);
+    relevantToShow.forEach((item) => {
+      tableLines.push(formatTableForPrompt(item.table, item.index));
+    });
+  }
+  
+  const otherToShow = tablesToShow.filter((t) => !t.isRelevant);
+  if (otherToShow.length > 0) {
+    if (prioritizedTables.length > 0) {
+      tableLines.push("");
+    }
+    tableLines.push("----- OTHER TABLES -----");
+    otherToShow.forEach((item) => {
+      tableLines.push(formatTableForPrompt(item.table, item.index));
+    });
+  }
+  
+  if (truncatedOtherTables) {
+    const notShownCount = tables.length - MAX_TABLES_TO_SHOW;
+    tableLines.push(
+      `\n... (${notShownCount} more tables not shown. See full index above for all table names.)`
+    );
   }
 
   const relLines = [];
   if (relationships && relationships.length > 0) {
-    for (let i = 0; i < showRels; i++) {
-      relLines.push(formatRelationshipForPrompt(relationships[i], tables, i + 1));
+    const relevantRelIds = new Set();
+    
+    if (relatedIds.length > 0) {
+      relationships.forEach((rel) => {
+        if (relatedIdSet.has(rel.startTableId) || relatedIdSet.has(rel.endTableId)) {
+          relevantRelIds.add(rel.id);
+        }
+      });
+    }
+    
+    const sortedRelationships = [];
+    const otherRelationships = [];
+    
+    relationships.forEach((rel) => {
+      if (relevantRelIds.has(rel.id)) {
+        sortedRelationships.push(rel);
+      } else {
+        otherRelationships.push(rel);
+      }
+    });
+    
+    const combinedRels = [...sortedRelationships, ...otherRelationships];
+    
+    for (let i = 0; i < showRels && i < combinedRels.length; i++) {
+      relLines.push(formatRelationshipForPrompt(combinedRels[i], tables, i + 1));
     }
 
     if (truncatedRels) {
@@ -129,17 +246,22 @@ function buildDiagramSnapshot(tables, relationships) {
     }
   }
 
-  const summary = `Current diagram has ${tableCount} table(s) and ${relCount} relationship(s).`;
+  let summary = `Current diagram has ${tableCount} table(s) and ${relCount} relationship(s).`;
+  if (prioritizedTables.length > 0) {
+    summary += ` ${prioritizedTables.length} table(s) marked as relevant.`;
+  }
 
   return {
     summary,
     tablesSection: tableLines.join("\n\n"),
     relationshipsSection: relLines.join("\n"),
     truncated,
+    fullIndex,
+    hasRelevantTables: prioritizedTables.length > 0,
   };
 }
 
-export function buildSystemPrompt(database, tables, relationships) {
+export function buildSystemPrompt(database, tables, relationships, options = {}) {
   const dbDisplayName = dbDisplayNames[database] || database;
   const typeMap = dbToTypes[database];
   const availableTypes = typeMap
@@ -148,14 +270,16 @@ export function buildSystemPrompt(database, tables, relationships) {
         .join(", ")
     : "INT, VARCHAR, TEXT, BOOLEAN, DATETIME, FLOAT, DECIMAL";
 
-  const snapshot = buildDiagramSnapshot(tables, relationships);
+  const snapshot = buildDiagramSnapshot(tables, relationships, options);
 
   let diagramInfo = "";
   if (tables && tables.length > 0) {
     diagramInfo = `\n\n===== CURRENT DIAGRAM SNAPSHOT =====
 ${snapshot.summary}
 
------ TABLES -----
+${snapshot.fullIndex}
+
+${snapshot.hasRelevantTables ? "----- RELEVANT TABLES (detailed) -----" : "----- TABLES DETAIL -----"}
 ${snapshot.tablesSection}`;
 
     if (snapshot.relationshipsSection) {
@@ -164,7 +288,7 @@ ${snapshot.relationshipsSection}`;
     }
 
     if (snapshot.truncated) {
-      diagramInfo += `\n\n(Note: Output truncated to fit context limits. Focus on the most relevant tables first.)`;
+      diagramInfo += `\n\n(Note: Output truncated to fit context limits. See "ALL TABLES INDEX" above for complete table list. Use table name or index to reference specific tables.)`;
     }
 
     diagramInfo += `\n===== END SNAPSHOT =====`;
