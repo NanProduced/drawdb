@@ -87,6 +87,9 @@ export default function Modal({
   const [saveAsTitle, setSaveAsTitle] = useState(title);
   const [fetchedSchema, setFetchedSchema] = useState(null);
   const [overwritePostgres, setOverwritePostgres] = useState(false);
+  const [diagramDataToImport, setDiagramDataToImport] = useState(null);
+  const [conflictingTableNames, setConflictingTableNames] = useState([]);
+  const [showConflictChoice, setShowConflictChoice] = useState(false);
   const navigate = useNavigate();
 
   const overwriteDiagram = () => {
@@ -207,6 +210,15 @@ export default function Modal({
           try {
             const diagramData = convertPostgresStructureToDiagram(fetchedSchema, database);
             
+            const conflictingTables = findConflictingTables(diagramData.tables, tables);
+            
+            if (conflictingTables.length > 0) {
+              setDiagramDataToImport(diagramData);
+              setConflictingTableNames(conflictingTables);
+              setShowConflictChoice(true);
+              return;
+            }
+            
             if (overwritePostgres) {
               setTables(diagramData.tables);
               setRelationships(diagramData.relationships);
@@ -216,24 +228,12 @@ export default function Modal({
               setNotes([]);
               setAreas([]);
             } else {
-              const conflictingTables = findConflictingTables(diagramData.tables, tables);
-              
-              let finalData = diagramData;
-              if (conflictingTables.length > 0) {
-                finalData = reassignIds(diagramData, tables, relationships);
-              }
-              
-              setTables((prev) => [...prev, ...finalData.tables]);
-              setRelationships((prev) =>
-                [...prev, ...finalData.relationships].map((r, i) => ({
-                  ...r,
-                  id: i,
-                })),
-              );
-              if (databases[database].hasTypes && finalData.types.length)
-                setTypes((prev) => [...prev, ...finalData.types]);
-              if (databases[database].hasEnums && finalData.enums.length)
-                setEnums((prev) => [...prev, ...finalData.enums]);
+              setTables((prev) => [...prev, ...diagramData.tables]);
+              setRelationships((prev) => [...prev, ...diagramData.relationships]);
+              if (databases[database].hasTypes && diagramData.types.length)
+                setTypes((prev) => [...prev, ...diagramData.types]);
+              if (databases[database].hasEnums && diagramData.enums.length)
+                setEnums((prev) => [...prev, ...diagramData.enums]);
             }
 
             setUndoStack([]);
@@ -301,6 +301,132 @@ export default function Modal({
           />
         );
       case MODAL.IMPORT_POSTGRES:
+        if (showConflictChoice) {
+          return (
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg" style={{ background: "rgba(var(--semi-grey-0), 1)" }}>
+                <h3 className="text-lg font-semibold mb-2">{t("postgres_conflict_title")}</h3>
+                <p className="text-sm mb-3">
+                  {t("postgres_conflict_message", { count: conflictingTableNames.length })}
+                </p>
+                <div className="text-sm font-medium mb-1">
+                  {t("postgres_conflict_table_list", { tables: conflictingTableNames.join(", ") })}
+                </div>
+              </div>
+              <div className="space-y-3">
+                <label
+                  className="flex items-start p-3 rounded-lg cursor-pointer border"
+                  style={{ borderColor: "var(--semi-color-border)" }}
+                >
+                  <input
+                    type="radio"
+                    name="conflictChoice"
+                    value="overwrite"
+                    className="mt-1 mr-3"
+                    onClick={() => {
+                      if (!diagramDataToImport) return;
+                      try {
+                        setTables(diagramDataToImport.tables);
+                        setRelationships(diagramDataToImport.relationships);
+                        if (databases[database].hasTypes) setTypes(diagramDataToImport.types ?? []);
+                        if (databases[database].hasEnums) setEnums(diagramDataToImport.enums ?? []);
+                        setTransform((prev) => ({ ...prev, pan: { x: 0, y: 0 } }));
+                        setNotes([]);
+                        setAreas([]);
+                        setUndoStack([]);
+                        setRedoStack([]);
+                        setFetchedSchema(null);
+                        setOverwritePostgres(false);
+                        setDiagramDataToImport(null);
+                        setConflictingTableNames([]);
+                        setShowConflictChoice(false);
+                        setModal(MODAL.NONE);
+                      } catch (e) {
+                        setError({
+                          type: STATUS.ERROR,
+                          message: `Failed to import PostgreSQL schema: ${e.message}`,
+                        });
+                      }
+                    }}
+                  />
+                  <div>
+                    <div className="font-medium">{t("postgres_option_overwrite")}</div>
+                    <div className="text-sm" style={{ color: "var(--semi-color-text-2)" }}>
+                      {t("postgres_option_overwrite_desc")}
+                    </div>
+                  </div>
+                </label>
+                <label
+                  className="flex items-start p-3 rounded-lg cursor-pointer border"
+                  style={{ borderColor: "var(--semi-color-border)" }}
+                >
+                  <input
+                    type="radio"
+                    name="conflictChoice"
+                    value="append"
+                    className="mt-1 mr-3"
+                    onClick={() => {
+                      if (!diagramDataToImport) return;
+                      try {
+                        const finalData = reassignIds(diagramDataToImport, tables, relationships);
+                        setTables((prev) => [...prev, ...finalData.tables]);
+                        setRelationships((prev) => [...prev, ...finalData.relationships]);
+                        if (databases[database].hasTypes && finalData.types.length)
+                          setTypes((prev) => [...prev, ...finalData.types]);
+                        if (databases[database].hasEnums && finalData.enums.length)
+                          setEnums((prev) => [...prev, ...finalData.enums]);
+                        setUndoStack([]);
+                        setRedoStack([]);
+                        setFetchedSchema(null);
+                        setOverwritePostgres(false);
+                        setDiagramDataToImport(null);
+                        setConflictingTableNames([]);
+                        setShowConflictChoice(false);
+                        setModal(MODAL.NONE);
+                      } catch (e) {
+                        setError({
+                          type: STATUS.ERROR,
+                          message: `Failed to import PostgreSQL schema: ${e.message}`,
+                        });
+                      }
+                    }}
+                  />
+                  <div>
+                    <div className="font-medium">{t("postgres_option_append")}</div>
+                    <div className="text-sm" style={{ color: "var(--semi-color-text-2)" }}>
+                      {t("postgres_option_append_desc")}
+                    </div>
+                  </div>
+                </label>
+                <label
+                  className="flex items-start p-3 rounded-lg cursor-pointer border"
+                  style={{ borderColor: "var(--semi-color-border)" }}
+                >
+                  <input
+                    type="radio"
+                    name="conflictChoice"
+                    value="cancel"
+                    className="mt-1 mr-3"
+                    onClick={() => {
+                      setDiagramDataToImport(null);
+                      setConflictingTableNames([]);
+                      setShowConflictChoice(false);
+                      setFetchedSchema(null);
+                      setOverwritePostgres(false);
+                      setModal(MODAL.NONE);
+                    }}
+                  />
+                  <div>
+                    <div className="font-medium">{t("postgres_option_cancel")}</div>
+                    <div className="text-sm" style={{ color: "var(--semi-color-text-2)" }}>
+                      {t("postgres_option_cancel_desc")}
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          );
+        }
         return (
           <ImportPostgres
             setFetchedSchema={setFetchedSchema}
@@ -414,11 +540,19 @@ export default function Modal({
         });
         setFetchedSchema(null);
         setOverwritePostgres(false);
+        setDiagramDataToImport(null);
+        setConflictingTableNames([]);
+        setShowConflictChoice(false);
       }}
       onCancel={() => {
         if (modal === MODAL.RENAME) setUncontrolledTitle(title);
         if (modal === MODAL.LANGUAGE) setUncontrolledLanguage(i18n.language);
         if (modal === MODAL.TABLE_WIDTH) setTempTableWidth(settings.tableWidth);
+        if (modal === MODAL.IMPORT_POSTGRES && showConflictChoice) {
+          setDiagramDataToImport(null);
+          setConflictingTableNames([]);
+          setShowConflictChoice(false);
+        }
         setModal(MODAL.NONE);
       }}
       centered
@@ -434,10 +568,10 @@ export default function Modal({
           (modal === MODAL.SAVEAS && saveAsTitle === "") ||
           (modal === MODAL.IMPORT_SRC && importSource.src === "") ||
           (modal === MODAL.IMPORT_POSTGRES && !fetchedSchema),
-        hidden: modal === MODAL.SHARE,
+        hidden: modal === MODAL.SHARE || (modal === MODAL.IMPORT_POSTGRES && showConflictChoice),
       }}
       hasCancel={modal !== MODAL.SHARE}
-      cancelText={modal === MODAL.IMPORT_POSTGRES ? t("close") : t("cancel")}
+      cancelText={t("cancel")}
       width={getModalWidth(modal)}
       bodyStyle={{
         maxHeight: window.innerHeight - 280,

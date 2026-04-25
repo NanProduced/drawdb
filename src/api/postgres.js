@@ -74,7 +74,7 @@ export function convertPostgresStructureToDiagram(structure, diagramDb) {
     tableIdMap.set(table.name, tableId);
     
     const fields = [];
-    table.fields.forEach((field, fieldIndex) => {
+    table.fields.forEach((field) => {
       const fieldId = generateStableId("field", table.name, field.name);
       fieldIdMap.set(`${table.name}.${field.name}`, fieldId);
       
