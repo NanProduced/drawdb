@@ -136,6 +136,17 @@ export default function ChatMessage({ message }) {
     const getToolLabel = uiConfig?.getToolLabel || getDefaultToolLabel;
     const getDisplayText = uiConfig?.getDisplayText || getDefaultDisplayText;
     const category = uiConfig?.category || "write";
+    const successDetails = result.details?.filter((r) => r.success) || [];
+    const failedDetails = result.details?.filter((r) => !r.success) || [];
+    const displayLimit = uiConfig?.displayLimit;
+    const visibleSuccessDetails = displayLimit
+      ? successDetails.slice(0, displayLimit)
+      : successDetails;
+    const hiddenSuccessCount = displayLimit
+      ? Math.max(0, successDetails.length - displayLimit)
+      : 0;
+    const getOverflowText =
+      uiConfig?.getOverflowText || ((count) => `+${count} more`);
 
     const isSuccessTool = hasSuccess && category === "write";
 
@@ -177,10 +188,9 @@ export default function ChatMessage({ message }) {
               {getToolLabel(result, t)}
             </span>
           </div>
-          {result.details?.filter((r) => r.success).length > 0 && (
+          {successDetails.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-1.5">
-              {result.details
-                .filter((r) => r.success)
+              {visibleSuccessDetails
                 .map((r, i) => {
                   const displayText = getDisplayText(r);
                   return (
@@ -196,12 +206,22 @@ export default function ChatMessage({ message }) {
                     </span>
                   );
                 })}
+              {hiddenSuccessCount > 0 && (
+                <span
+                  className="text-xs px-2 py-0.5 rounded-md font-mono"
+                  style={{
+                    background: "rgba(var(--semi-blue-5), 0.1)",
+                    color: "rgba(var(--semi-blue-5), 1)",
+                  }}
+                >
+                  {getOverflowText(hiddenSuccessCount)}
+                </span>
+              )}
             </div>
           )}
-          {result.details?.filter((r) => !r.success).length > 0 && (
+          {failedDetails.length > 0 && (
             <div className="mt-1.5">
-              {result.details
-                .filter((r) => !r.success)
+              {failedDetails
                 .map((r, i) => (
                   <span
                     key={i}

@@ -1012,12 +1012,6 @@ function executeArrangeTables(args, { tables, relationships, diagram, setUndoSta
       const table = findTableIgnoreCase(tables, tableName);
       if (table) {
         targetTableIds.push(table.id);
-        results.push({
-          success: true,
-          table_name: table.name,
-          table_id: table.id,
-          action: "included",
-        });
       } else {
         results.push({
           success: false,
@@ -1570,6 +1564,8 @@ const toolRegistry = {
       getDisplayText: (item) => {
         return item.display_text || item.table_name || item.table || "table";
       },
+      displayLimit: 3,
+      getOverflowText: (hiddenCount) => `等 ${hiddenCount} 张`,
       category: "write",
     },
   },
