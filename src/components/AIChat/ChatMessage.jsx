@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { getToolUIConfig } from "../../services/aiTools";
 
 function ThinkBlock({ content }) {
   const [open, setOpen] = useState(false);
@@ -75,6 +76,24 @@ function parseThinkContent(text) {
   return parts;
 }
 
+function getDefaultToolLabel(result, t) {
+  const successCount = result.details?.filter((r) => r.success).length || 0;
+  return successCount > 0
+    ? `Executed ${successCount} operation(s)`
+    : (t ? t("ai_tool_executed") : "Tool executed");
+}
+
+function getDefaultDisplayText(item) {
+  return (
+    item.tableName ||
+    item.table_name ||
+    item.table ||
+    item.name ||
+    item.id ||
+    "item"
+  );
+}
+
 export default function ChatMessage({ message }) {
   const isUser = message.role === "user";
   const isTool = message.role === "tool";
@@ -109,59 +128,16 @@ export default function ChatMessage({ message }) {
     }
 
     const toolName = message.toolName;
-    const successCount = result.results?.filter((r) => r.success).length || 0;
+    const uiConfig = getToolUIConfig(toolName);
+
+    const successCount = result.details?.filter((r) => r.success).length || 0;
     const hasSuccess = successCount > 0;
 
-    const getDisplayText = (r) => {
-      if (toolName === "create_tables") {
-        return r.tableName || r.table_name || "table";
-      }
-      if (toolName === "inspect_tables") {
-        return r.tableName || r.table_name || "table";
-      }
-      if (toolName === "add_fields") {
-        const tableName = r.table_actual_name || r.table || r.table_name || r.tableName;
-        const fieldName = r.field_name || r.field;
-        return `${tableName}.${fieldName}`;
-      }
-      if (toolName === "modify_fields") {
-        const tableName = r.table_actual_name || r.table || r.table_name || r.tableName;
-        const fieldName = r.field_actual_name || r.field;
-        return `${tableName}.${fieldName}`;
-      }
-      if (toolName === "create_relationships") {
-        const from = `${r.from_table || "from"}.${r.from_field || "field"}`;
-        const to = `${r.to_table || "to"}.${r.to_field || "field"}`;
-        const cardinality = r.cardinality_display || r.cardinality || "";
-        return cardinality ? `${from} -> ${to} (${cardinality})` : `${from} -> ${to}`;
-      }
-      return r.tableName || r.table_name || r.table || "item";
-    };
+    const getToolLabel = uiConfig?.getToolLabel || getDefaultToolLabel;
+    const getDisplayText = uiConfig?.getDisplayText || getDefaultDisplayText;
+    const category = uiConfig?.category || "write";
 
-    const getToolLabel = () => {
-      switch (toolName) {
-        case "create_tables":
-          return hasSuccess ? t("ai_tables_created", { count: successCount }) : t("ai_tool_executed");
-        case "inspect_tables":
-          return hasSuccess ? `Inspected ${successCount} table(s)` : t("ai_tool_executed");
-        case "create_relationships":
-          return hasSuccess ? `Created ${successCount} relationship(s)` : t("ai_tool_executed");
-        case "add_fields":
-          return hasSuccess ? `Added ${successCount} field(s)` : t("ai_tool_executed");
-        case "modify_fields":
-          return hasSuccess ? `Modified ${successCount} field(s)` : t("ai_tool_executed");
-        default:
-          return t("ai_tool_executed");
-      }
-    };
-
-    const isSuccessTool = hasSuccess && (
-      toolName === "create_tables" ||
-      toolName === "inspect_tables" ||
-      toolName === "create_relationships" ||
-      toolName === "add_fields" ||
-      toolName === "modify_fields"
-    );
+    const isSuccessTool = hasSuccess && category === "write";
 
     return (
       <div className="flex justify-start">
@@ -198,12 +174,12 @@ export default function ChatMessage({ message }) {
                   : "var(--semi-color-text-2)",
               }}
             >
-              {getToolLabel()}
+              {getToolLabel(result, t)}
             </span>
           </div>
-          {result.results?.filter((r) => r.success).length > 0 && (
+          {result.details?.filter((r) => r.success).length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-1.5">
-              {result.results
+              {result.details
                 .filter((r) => r.success)
                 .map((r, i) => {
                   const displayText = getDisplayText(r);
@@ -222,9 +198,9 @@ export default function ChatMessage({ message }) {
                 })}
             </div>
           )}
-          {result.results?.filter((r) => !r.success).length > 0 && (
+          {result.details?.filter((r) => !r.success).length > 0 && (
             <div className="mt-1.5">
-              {result.results
+              {result.details
                 .filter((r) => !r.success)
                 .map((r, i) => (
                   <span
